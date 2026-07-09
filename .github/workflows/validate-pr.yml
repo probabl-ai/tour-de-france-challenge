@@ -63,14 +63,11 @@ jobs:
                       include.append({"submission": p.name})
 
           matrix = {"include": include} if include else {"include": [{"submission": "_skeleton"}]}
-          print(json.dumps(matrix))
           Path("matrix.json").write_text(json.dumps(matrix))
+          print(json.dumps(matrix))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"matrix={json.dumps(matrix)}\n")
           PY
-          {
-            echo "matrix<<EOF"
-            cat matrix.json
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
 
   validate:
     needs: discover
