@@ -94,7 +94,8 @@ python scripts/run_submission.py submissions/_skeleton --allow-holdout
 | Secret | Purpose |
 | --- | --- |
 | `SKORE_API_KEY` | Private workspace API key for `skore.login(mode="hub")` |
-| `SKORE_WORKSPACE` | Hub workspace slug (projects are named `tdf-YYYY-MM-DD`) |
+
+Hub workspace is public config: `tour-de-france-challenge` (projects are named `tdf-YYYY-MM-DD`).
 
 Optional: `TDF_YEAR` repository variable to override the Tour season year.
 

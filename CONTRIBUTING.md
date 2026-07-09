@@ -64,4 +64,4 @@ The nightly `fetch-and-score` workflow:
 
 1. Refreshes `data/data.csv` and `next_stage.csv` from letour.fr (+ Wayback history)
 2. Scores every `submissions/*/` folder (except `_skeleton`)
-3. Publishes each report to Skore Hub project `{SKORE_WORKSPACE}/tdf-YYYY-MM-DD`
+3. Publishes each report to Skore Hub project `tour-de-france-challenge/tdf-YYYY-MM-DD`

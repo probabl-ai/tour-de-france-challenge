@@ -1,0 +1,123 @@
+name: Score and publish to Skore Hub
+
+# Manual scoring against committed data/test.csv (no re-fetch).
+# Use after a data cut / for backfill experiments.
+
+on:
+  workflow_dispatch:
+    inputs:
+      submission:
+        description: "Submission folder under submissions/ (empty = all)"
+        required: false
+        type: string
+      skore_project:
+        description: "Hub project name (default: from data/latest_score_meta.json)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      skore_project: ${{ steps.meta.outputs.skore_project }}
+      has_test: ${{ steps.meta.outputs.has_test }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: meta
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          info = json.loads(Path("data/latest_score_meta.json").read_text()) if Path("data/latest_score_meta.json").exists() else {}
+          project = """${{ inputs.skore_project }}""".strip() or info.get("skore_project") or "tdf-unknown"
+          n_score = int(info.get("n_score") or 0)
+          has_test = Path("data/test.csv").exists() and Path("data/test.csv").stat().st_size > 0
+          print(f"skore_project={project}")
+          print(f"has_test={'true' if has_test and n_score > 0 else 'false'}")
+          Path.home().joinpath("meta_out.txt").write_text(
+              f"skore_project={project}\nhas_test={'true' if has_test and n_score > 0 else 'false'}\n"
+          )
+          PY
+          while IFS= read -r line; do echo "$line" >> "$GITHUB_OUTPUT"; done < "$HOME/meta_out.txt"
+
+      - id: matrix
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          only = """${{ inputs.submission }}""".strip()
+          root = Path("submissions")
+          names = []
+          if only:
+              p = root / only
+              if p.is_dir() and (p / "submission.py").exists():
+                  names = [only]
+          else:
+              names = sorted(
+                  p.name for p in root.iterdir()
+                  if p.is_dir() and not p.name.startswith("_") and (p / "submission.py").exists()
+              )
+          matrix = {"include": [{"submission": n} for n in names]} if names else {"include": []}
+          Path("matrix.json").write_text(json.dumps(matrix))
+          print(json.dumps(matrix))
+          PY
+          {
+            echo "matrix<<EOF"
+            cat matrix.json
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  score:
+    needs: discover
+    if: needs.discover.outputs.has_test == 'true' && needs.discover.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Create isolated environment
+        run: |
+          python -m venv .venv-sub
+          source .venv-sub/bin/activate
+          pip install -U pip
+          pip install -e .
+          REQ="submissions/${{ matrix.submission }}/requirements.txt"
+          if [ -f "$REQ" ]; then pip install -r "$REQ"; fi
+
+      - name: Check skore usage
+        run: |
+          source .venv-sub/bin/activate
+          python scripts/check_skore_usage.py "submissions/${{ matrix.submission }}"
+
+      - name: Evaluate and publish to Skore Hub
+        env:
+          SKORE_API_KEY: ${{ secrets.SKORE_API_KEY }}
+          SKORE_WORKSPACE: tour-de-france-challenge
+          SKORE_PROJECT: ${{ needs.discover.outputs.skore_project }}
+          PUBLISH_TO_HUB: "1"
+          SUBMISSION_SUMMARY: "submission_summary_${{ matrix.submission }}.json"
+        run: |
+          source .venv-sub/bin/activate
+          python scripts/run_submission.py \
+            "submissions/${{ matrix.submission }}" \
+            --publish \
+            --hub-key "${{ matrix.submission }}"
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: summary-${{ matrix.submission }}
+          path: submission_summary_${{ matrix.submission }}.json
+          if-no-files-found: ignore

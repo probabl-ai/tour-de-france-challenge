@@ -1,13 +1,14 @@
 {
-  "n_data": 3848,
+  "n_data": 3667,
   "n_next": 181,
-  "latest_stage_number": 5,
-  "latest_stage_date": "2026-07-08",
   "latest_year": 2026,
-  "next_stage_number": 6,
-  "next_stage_date": "2026-07-09",
-  "score_stage_number": null,
-  "score_stage_date": null,
-  "n_score": 0,
-  "skore_project": "tdf-2026-07-09"
+  "latest_stage_number": 4,
+  "latest_stage_date": "2026-07-07",
+  "next_stage_number": 5,
+  "next_stage_date": "2026-07-08",
+  "score_stage_number": 5,
+  "score_stage_date": "2026-07-08",
+  "n_score": 181,
+  "skore_project": "tdf-2026-07-08",
+  "note": "Manual cut for challenger experiment: train through July 7, score July 8"
 }

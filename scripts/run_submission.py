@@ -177,13 +177,10 @@ def main() -> int:
 
     publish = args.publish or os.environ.get("PUBLISH_TO_HUB") == "1"
     if publish:
-        workspace = os.environ.get("SKORE_WORKSPACE")
+        workspace = os.environ.get("SKORE_WORKSPACE", "tour-de-france-challenge")
         project = os.environ.get("SKORE_PROJECT")
-        if not workspace or not project:
-            print(
-                "error: SKORE_WORKSPACE and SKORE_PROJECT are required to publish",
-                file=sys.stderr,
-            )
+        if not project:
+            print("error: SKORE_PROJECT is required to publish", file=sys.stderr)
             return 1
         if not os.environ.get("SKORE_API_KEY"):
             print("error: SKORE_API_KEY is required to publish", file=sys.stderr)
