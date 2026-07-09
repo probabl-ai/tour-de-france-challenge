@@ -65,12 +65,9 @@ jobs:
           matrix = {"include": [{"submission": n} for n in names]} if names else {"include": []}
           Path("matrix.json").write_text(json.dumps(matrix))
           print(json.dumps(matrix))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"matrix={json.dumps(matrix)}\n")
           PY
-          {
-            echo "matrix<<EOF"
-            cat matrix.json
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
 
   score:
     needs: discover
