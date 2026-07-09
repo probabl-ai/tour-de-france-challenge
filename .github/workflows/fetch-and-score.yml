@@ -1,0 +1,167 @@
+name: Fetch data and score submissions
+
+on:
+  schedule:
+    # 20:00 Europe/Paris ≈ 18:00 UTC during CEST (July)
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Tour de France year (empty = TDF_YEAR var or current year)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-and-score
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    outputs:
+      skore_project: ${{ steps.meta.outputs.skore_project }}
+      has_test: ${{ steps.meta.outputs.has_test }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install challenge tooling
+        run: pip install -e .
+
+      - name: Fetch Tour de France data
+        env:
+          TDF_YEAR: ${{ inputs.year || vars.TDF_YEAR }}
+        run: |
+          if ! python scripts/fetch_tdf_data.py; then
+            echo "::warning::Live fetch failed."
+            if [ ! -s data/data.csv ]; then
+              echo "No committed data.csv; failing the job."
+              exit 1
+            else
+              echo "Keeping committed data/*.csv from the repository."
+            fi
+          fi
+
+      - name: Commit updated CSVs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/*.csv data/latest_score_meta.json || true
+          # Drop legacy train.csv if the fetch removed it
+          git add -u data/train.csv 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "No data changes to commit"
+          else
+            git commit -m "chore(data): refresh Tour de France dataset"
+            git push
+          fi
+
+      - name: Read score metadata
+        id: meta
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          meta_path = Path("data/latest_score_meta.json")
+          if meta_path.exists():
+              info = json.loads(meta_path.read_text())
+          else:
+              info = {}
+          project = info.get("skore_project") or "tdf-unknown"
+          n_score = int(info.get("n_score") or 0)
+          has_test = "true" if n_score > 0 else "false"
+          print(f"skore_project={project}")
+          print(f"has_test={has_test}")
+          with open(Path.home() / "meta_out.txt", "w") as f:
+              f.write(f"skore_project={project}\n")
+              f.write(f"has_test={has_test}\n")
+          PY
+          while IFS= read -r line; do
+            echo "$line" >> "$GITHUB_OUTPUT"
+          done < "$HOME/meta_out.txt"
+
+      - name: Build submission matrix
+        id: matrix
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("submissions")
+          names = sorted(
+              p.name
+              for p in root.iterdir()
+              if p.is_dir() and not p.name.startswith("_") and (p / "submission.py").exists()
+          )
+          matrix = {"include": [{"submission": n} for n in names]} if names else {"include": []}
+          print(json.dumps(matrix))
+          Path("matrix.json").write_text(json.dumps(matrix))
+          PY
+          {
+            echo "matrix<<EOF"
+            cat matrix.json
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  score:
+    needs: fetch
+    if: needs.fetch.outputs.has_test == 'true' && needs.fetch.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.fetch.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Create isolated environment
+        run: |
+          python -m venv .venv-sub
+          source .venv-sub/bin/activate
+          pip install -U pip
+          pip install -e .
+          if [ -f "submissions/${{ matrix.submission }}/requirements.txt" ]; then
+            pip install -r "submissions/${{ matrix.submission }}/requirements.txt"
+          fi
+
+      - name: Check skore usage
+        run: |
+          source .venv-sub/bin/activate
+          python scripts/check_skore_usage.py "submissions/${{ matrix.submission }}"
+
+      - name: Evaluate and publish to Skore Hub
+        env:
+          SKORE_API_KEY: ${{ secrets.SKORE_API_KEY }}
+          SKORE_WORKSPACE: ${{ secrets.SKORE_WORKSPACE }}
+          SKORE_PROJECT: ${{ needs.fetch.outputs.skore_project }}
+          PUBLISH_TO_HUB: "1"
+          SUBMISSION_SUMMARY: "submission_summary_${{ matrix.submission }}.json"
+        run: |
+          source .venv-sub/bin/activate
+          python scripts/run_submission.py \
+            "submissions/${{ matrix.submission }}" \
+            --publish \
+            --hub-key "${{ matrix.submission }}"
+
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: summary-${{ matrix.submission }}
+          path: submission_summary_${{ matrix.submission }}.json
+          if-no-files-found: ignore

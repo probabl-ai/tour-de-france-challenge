@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tour-de-france-challenge"
+version = "0.1.0"
+description = "Daily Tour de France stage-rank prediction challenge powered by skore"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scikit-learn>=1.5",
+    "skrub>=0.5",
+    "skore[hub]>=0.8",
+    "requests>=2.32",
+    "selectolax>=0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.9",
+]
+
+[tool.setuptools]
+packages = []
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
