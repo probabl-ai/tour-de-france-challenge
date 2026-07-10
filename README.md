@@ -97,7 +97,7 @@ python scripts/run_submission.py submissions/_skeleton --allow-holdout
 | Secret | Purpose |
 | --- | --- |
 | `SKORE_API_KEY` | Mapped to `SKORE_HUB_API_KEY` for `skore.login(mode="hub")` |
-| `DATA_PUSH_TOKEN` | Fine-grained PAT (your user) with **Contents: Read and write** on this repo, so nightly fetch can push `data/` to protected `main` |
+| `DATA_PUSH_TOKEN` | Fine-grained PAT (your user) with access to this repo, **Contents: Read and write**, and org SSO authorized if required — used only to push `data/` past protected `main` |
 
 Hub workspace: `tour-de-france-challenge`. Projects are named `{day}_juillet` (e.g. `9_juillet`).
 
