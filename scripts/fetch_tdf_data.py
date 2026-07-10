@@ -21,10 +21,10 @@ from __future__ import annotations
 import argparse
 import html as htmlmod
 import json
-import os
 import re
+import sys
 import time
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
@@ -34,6 +34,10 @@ import requests
 from selectolax.parser import HTMLParser
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+# Challenge is locked to the 2026 Tour (history = 2025 via Wayback PCS).
+CURRENT_YEAR = 2026
+HISTORY_YEAR = 2025
+STAGE_CATALOG_PATH = DATA_DIR / "stage_catalog.json"
 LETOUR = "https://www.letour.fr"
 WAYBACK = "https://web.archive.org/web"
 PCS = "https://www.procyclingstats.com"
@@ -44,6 +48,8 @@ HEADERS = {
     )
 }
 
+# Homogeneous schema across 2025 (PCS) and 2026 (letour). Dropped always-empty /
+# source-asymmetric fields: nationality, pcs_points, uci_points, profile_icon.
 COLUMNS = [
     "year",
     "stage_number",
@@ -51,15 +57,11 @@ COLUMNS = [
     "rider_id",
     "rider_name",
     "team",
-    "nationality",
     "bib",
     "age",
     "stage_type",
     "distance_km",
-    "profile_icon",
     "stage_name",
-    "pcs_points",
-    "uci_points",
     "prior_stages_ridden",
     "avg_prior_stage_rank",
     "best_prior_stage_rank",
@@ -70,6 +72,106 @@ COLUMNS = [
     "stage_rank",
 ]
 ID_KEY = ["year", "stage_number", "rider_id"]
+
+_STAGE_CATALOG: dict[str, dict[str, dict[str, Any]]] | None = None
+
+
+def _load_stage_catalog() -> dict[str, dict[str, dict[str, Any]]]:
+    global _STAGE_CATALOG
+    if _STAGE_CATALOG is not None:
+        return _STAGE_CATALOG
+    if not STAGE_CATALOG_PATH.exists():
+        _STAGE_CATALOG = {}
+        return _STAGE_CATALOG
+    raw = json.loads(STAGE_CATALOG_PATH.read_text())
+    _STAGE_CATALOG = {str(y): {str(k): v for k, v in stages.items()} for y, stages in raw.items()}
+    return _STAGE_CATALOG
+
+
+def catalog_stage(year: int, stage_number: int) -> dict[str, Any] | None:
+    """Official stage meta (date / type / distance / name) shared by both seasons."""
+    return _load_stage_catalog().get(str(year), {}).get(str(stage_number))
+
+
+def _race_start_date(year: int) -> str | None:
+    stages = _load_stage_catalog().get(str(year), {})
+    dates = [s["date"] for s in stages.values() if s.get("date")]
+    return min(dates) if dates else None
+
+
+def _days_since_start(year: int, stage_date: str | None) -> int | None:
+    start = _race_start_date(year)
+    if not start or not stage_date:
+        return None
+    try:
+        return (
+            datetime.strptime(str(stage_date)[:10], "%Y-%m-%d").date()
+            - datetime.strptime(start, "%Y-%m-%d").date()
+        ).days
+    except ValueError:
+        return None
+
+
+def apply_stage_catalog(df: pd.DataFrame) -> pd.DataFrame:
+    """Overwrite stage-level fields from the shared catalog (both years)."""
+    if df.empty:
+        return df
+    catalog = _load_stage_catalog()
+    rows: list[dict[str, Any]] = []
+    for year, stages in catalog.items():
+        for stage_number, meta in stages.items():
+            date = meta.get("date")
+            rows.append(
+                {
+                    "year": int(year),
+                    "stage_number": int(stage_number),
+                    "cat_stage_date": date,
+                    "cat_stage_type": meta.get("type", "unknown"),
+                    "cat_distance_km": meta.get("distance_km"),
+                    "cat_stage_name": meta.get("name"),
+                    "cat_days_since_start": _days_since_start(int(year), date),
+                }
+            )
+    if not rows:
+        return df
+
+    cat_df = pd.DataFrame(rows)
+    out = df.merge(cat_df, on=["year", "stage_number"], how="left")
+    matched = out["cat_stage_date"].notna() | out["cat_stage_type"].notna()
+    out.loc[matched, "stage_date"] = out.loc[matched, "cat_stage_date"]
+    out.loc[matched, "stage_type"] = out.loc[matched, "cat_stage_type"].fillna("unknown")
+    dist_ok = matched & out["cat_distance_km"].notna()
+    out.loc[dist_ok, "distance_km"] = out.loc[dist_ok, "cat_distance_km"]
+    name_ok = matched & out["cat_stage_name"].notna()
+    out.loc[name_ok, "stage_name"] = out.loc[name_ok, "cat_stage_name"]
+    days_ok = matched & out["cat_days_since_start"].notna()
+    out.loc[days_ok, "days_since_start"] = out.loc[days_ok, "cat_days_since_start"]
+    return out.drop(
+        columns=[
+            "cat_stage_date",
+            "cat_stage_type",
+            "cat_distance_km",
+            "cat_stage_name",
+            "cat_days_since_start",
+        ],
+        errors="ignore",
+    )
+
+
+def _apply_catalog_to_row(row: dict[str, Any], year: int, stage_number: int) -> dict[str, Any]:
+    meta = catalog_stage(year, stage_number)
+    if not meta:
+        return row
+    row["stage_date"] = meta.get("date") or row.get("stage_date")
+    row["stage_type"] = meta.get("type") or row.get("stage_type") or "unknown"
+    if meta.get("distance_km") is not None:
+        row["distance_km"] = meta["distance_km"]
+    if meta.get("name"):
+        row["stage_name"] = meta["name"]
+    days = _days_since_start(year, row.get("stage_date"))
+    if days is not None:
+        row["days_since_start"] = days
+    return row
 
 
 def _empty_frame() -> pd.DataFrame:
@@ -123,6 +225,7 @@ def _parse_time_to_seconds(value: Any) -> float | None:
         return float(m * 60 + s)
     if len(nums) == 1:
         return float(nums[0])
+    # Malformed inputs with 0 or 4+ numeric parts are treated as missing.
     return None
 
 
@@ -293,9 +396,6 @@ def fetch_letour_year(session: requests.Session, year: int) -> tuple[pd.DataFram
                     if meta["stage_number"] == s["stage_number"]:
                         meta.update({k: v for k, v in s.items() if v})
 
-    dates = [s["stage_date"] for s in stage_meta if s.get("stage_date")]
-    race_start = min(dates) if dates else None
-
     labeled_rows: list[dict[str, Any]] = []
     completed_meta: list[dict[str, Any]] = []
 
@@ -314,7 +414,7 @@ def fetch_letour_year(session: requests.Session, year: int) -> tuple[pd.DataFram
         if stacks:
             # first stack is usually general classifications; itg = individual general
             itg = stacks[0].get("itg")
-            if itg:
+            if itg and str(itg).startswith("/"):
                 try:
                     gc_html = _get(session, f"{LETOUR}{itg}")
                     gc_results = _parse_letour_table(gc_html)
@@ -339,21 +439,22 @@ def fetch_letour_year(session: requests.Session, year: int) -> tuple[pd.DataFram
             pass
 
         stage_type = _normalize_stage_type(meta.get("stage_name"), distance_km)
+        cat = catalog_stage(year, n)
+        if cat:
+            stage_type = cat.get("type") or stage_type
+            if cat.get("distance_km") is not None:
+                distance_km = cat["distance_km"]
+            if cat.get("date"):
+                meta["stage_date"] = cat["date"]
+            if cat.get("name"):
+                meta["stage_name"] = cat["name"]
         gc_by_rider = {r["rider_id"]: r for r in gc_results}
         # GC *before* this stage ≈ GC after previous stage; approximate with
         # current GC rank shifted via previous labeled rows later. Here store
         # post-stage GC as gc_rank_after proxy in a temp field, then shift.
         print(f"  stage {n}: {len(stage_results)} riders (letour)")
 
-        days_since_start = None
-        if race_start and meta.get("stage_date"):
-            try:
-                days_since_start = (
-                    datetime.strptime(meta["stage_date"], "%Y-%m-%d").date()
-                    - datetime.strptime(race_start, "%Y-%m-%d").date()
-                ).days
-            except ValueError:
-                days_since_start = None
+        days_since_start = _days_since_start(year, meta.get("stage_date"))
 
         for res in stage_results:
             gc = gc_by_rider.get(res["rider_id"], {})
@@ -365,15 +466,11 @@ def fetch_letour_year(session: requests.Session, year: int) -> tuple[pd.DataFram
                     "rider_id": res["rider_id"],
                     "rider_name": res.get("rider_name"),
                     "team": res.get("team"),
-                    "nationality": pd.NA,
                     "bib": res.get("bib"),
                     "age": pd.NA,
                     "stage_type": stage_type,
                     "distance_km": distance_km,
-                    "profile_icon": pd.NA,
                     "stage_name": meta.get("stage_name"),
-                    "pcs_points": pd.NA,
-                    "uci_points": pd.NA,
                     "gc_rank_after": gc.get("rank"),
                     "gc_time_after_s": _parse_time_to_seconds(gc.get("time")),
                     "days_since_start": days_since_start,
@@ -540,11 +637,6 @@ def _parse_pcs_wayback_stage(html: str, year: int, stage_number: int) -> list[di
             gc_rank = int(tds[1].text(strip=True))
         except ValueError:
             pass
-        uci = None
-        try:
-            uci = float(tds[9].text(strip=True)) if len(tds) > 9 else None
-        except ValueError:
-            pass
         results.append(
             {
                 "year": year,
@@ -553,22 +645,19 @@ def _parse_pcs_wayback_stage(html: str, year: int, stage_number: int) -> list[di
                 "rider_id": rider_id,
                 "rider_name": rider_name,
                 "team": team_name,
-                "nationality": pd.NA,
                 "bib": bib,
                 "age": age,
                 "stage_type": _normalize_stage_type(stage_name, distance_km),
                 "distance_km": distance_km,
-                "profile_icon": pd.NA,
                 "stage_name": stage_name,
-                "pcs_points": pd.NA,
-                "uci_points": uci,
                 "gc_rank_after": gc_rank,
                 "gc_time_after_s": pd.NA,
                 "days_since_start": pd.NA,
                 "stage_rank": float(rank_txt),
             }
         )
-    return results
+    # Prefer shared catalog for stage-level fields (homogeneous with 2026).
+    return [_apply_catalog_to_row(r, year, stage_number) for r in results]
 
 
 def fetch_pcs_wayback_year(
@@ -665,7 +754,6 @@ def build_next_stage(
     last_stage = int(current["stage_number"].max())
     upcoming = [s for s in stage_meta if s["stage_number"] > last_stage]
     if not upcoming:
-        # invent next stage number if meta incomplete
         next_num = last_stage + 1
         next_meta = {
             "year": year,
@@ -674,7 +762,6 @@ def build_next_stage(
             "stage_name": f"Stage {next_num}",
             "stage_type": "unknown",
             "distance_km": pd.NA,
-            "profile_icon": pd.NA,
         }
     else:
         nxt = upcoming[0]
@@ -685,8 +772,16 @@ def build_next_stage(
             "stage_name": nxt.get("stage_name"),
             "stage_type": _normalize_stage_type(nxt.get("stage_name"), None),
             "distance_km": pd.NA,
-            "profile_icon": pd.NA,
         }
+
+    cat = catalog_stage(year, int(next_meta["stage_number"]))
+    if cat:
+        next_meta["stage_date"] = cat.get("date") or next_meta.get("stage_date")
+        next_meta["stage_type"] = cat.get("type") or next_meta.get("stage_type")
+        next_meta["distance_km"] = cat.get("distance_km", next_meta.get("distance_km"))
+        next_meta["stage_name"] = cat.get("name") or next_meta.get("stage_name")
+
+    days = _days_since_start(year, next_meta.get("stage_date"))
 
     last_rows = current[current["stage_number"] == last_stage]
     rows = []
@@ -701,15 +796,11 @@ def build_next_stage(
                 "rider_id": last["rider_id"],
                 "rider_name": last["rider_name"],
                 "team": last["team"],
-                "nationality": last.get("nationality"),
                 "bib": last.get("bib"),
                 "age": last.get("age"),
                 "stage_type": next_meta["stage_type"],
                 "distance_km": next_meta["distance_km"],
-                "profile_icon": next_meta["profile_icon"],
                 "stage_name": next_meta["stage_name"],
-                "pcs_points": pd.NA,
-                "uci_points": pd.NA,
                 "prior_stages_ridden": len(prior),
                 "avg_prior_stage_rank": float(sum(prior) / len(prior)) if prior else pd.NA,
                 "best_prior_stage_rank": float(min(prior)) if prior else pd.NA,
@@ -720,11 +811,7 @@ def build_next_stage(
                 "gc_time_gap_before_s": (gc_after_latest or {})
                 .get(last["rider_id"], {})
                 .get("gc_time_gap_before_s", last.get("gc_time_gap_before_s")),
-                "days_since_start": (
-                    (last["days_since_start"] + 1)
-                    if pd.notna(last.get("days_since_start"))
-                    else pd.NA
-                ),
+                "days_since_start": days if days is not None else pd.NA,
                 "stage_rank": pd.NA,
             }
         )
@@ -748,12 +835,26 @@ def write_outputs(
     data: pd.DataFrame,
     next_stage: pd.DataFrame,
     score_stage: pd.DataFrame | None = None,
+    *,
+    has_new_stage: bool = False,
 ) -> dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    data = apply_stage_catalog(data)
     data = data.sort_values(["year", "stage_number", "stage_rank"], kind="mergesort").reset_index(
         drop=True
     )
+    # Ensure homogeneous column set (drop legacy empty fields if present).
+    for col in COLUMNS:
+        if col not in data.columns:
+            data[col] = pd.NA
+    data = data[COLUMNS]
     data.to_csv(DATA_DIR / "data.csv", index=False)
+
+    next_stage = apply_stage_catalog(next_stage)
+    for col in COLUMNS:
+        if col not in next_stage.columns:
+            next_stage[col] = pd.NA
+    next_stage = next_stage[COLUMNS] if not next_stage.empty else _empty_frame()
     next_stage.to_csv(DATA_DIR / "next_stage.csv", index=False)
 
     # Remove legacy train.csv if present
@@ -772,6 +873,8 @@ def write_outputs(
         "score_stage_number": None,
         "score_stage_date": None,
         "n_score": 0,
+        "has_new_stage": bool(has_new_stage),
+        "commit_day": None,
     }
     if not data.empty:
         # Prefer the most recent season present in data.csv
@@ -789,6 +892,11 @@ def write_outputs(
         info["next_stage_date"] = str(nd.iloc[0]) if not nd.empty else None
 
     if score_stage is not None and not score_stage.empty:
+        score_stage = apply_stage_catalog(score_stage)
+        for col in COLUMNS:
+            if col not in score_stage.columns:
+                score_stage[col] = pd.NA
+        score_stage = score_stage[COLUMNS]
         score_stage.to_csv(DATA_DIR / "test.csv", index=False)
         info["n_score"] = len(score_stage)
         info["score_stage_number"] = int(score_stage["stage_number"].iloc[0])
@@ -806,6 +914,14 @@ def write_outputs(
             info.get("next_stage_date"), info.get("next_stage_number")
         )
 
+    # Calendar day for the CI commit message ("New data for the {day} july stage")
+    day_src = info.get("score_stage_date") or info.get("latest_stage_date")
+    if day_src:
+        try:
+            info["commit_day"] = datetime.strptime(str(day_src)[:10], "%Y-%m-%d").day
+        except ValueError:
+            info["commit_day"] = None
+
     (DATA_DIR / "latest_score_meta.json").write_text(json.dumps(info, indent=2) + "\n")
     return info
 
@@ -821,77 +937,158 @@ def load_existing_data() -> pd.DataFrame:
     return df[COLUMNS]
 
 
+def enrich_existing_csvs() -> int:
+    """Re-apply stage catalog to committed CSVs without a live fetch."""
+    data = load_existing_data()
+    if data.empty:
+        print("No data.csv to enrich")
+        return 1
+    next_path = DATA_DIR / "next_stage.csv"
+    next_stage = pd.read_csv(next_path) if next_path.exists() else _empty_frame()
+    test_path = DATA_DIR / "test.csv"
+    score_stage = None
+    if test_path.exists() and test_path.stat().st_size > 0:
+        score_stage = pd.read_csv(test_path)
+    # Preserve prior meta flags when only enriching.
+    prev_meta: dict[str, Any] = {}
+    meta_path = DATA_DIR / "latest_score_meta.json"
+    if meta_path.exists():
+        try:
+            prev_meta = json.loads(meta_path.read_text())
+        except json.JSONDecodeError:
+            prev_meta = {}
+    info = write_outputs(
+        data,
+        next_stage,
+        score_stage=score_stage,
+        has_new_stage=bool(prev_meta.get("has_new_stage")),
+    )
+    if prev_meta.get("n_score") and score_stage is not None:
+        info["n_score"] = int(prev_meta["n_score"])
+        info["score_stage_number"] = prev_meta.get("score_stage_number")
+        info["score_stage_date"] = prev_meta.get("score_stage_date")
+        info["skore_project"] = prev_meta.get("skore_project") or info.get("skore_project")
+        meta_path.write_text(json.dumps(info, indent=2) + "\n")
+    print(
+        f"Enriched CSVs via stage_catalog.json "
+        f"(data={info['n_data']}, next={info['n_next']}, score={info.get('n_score', 0)})"
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--year",
-        type=int,
-        default=int(os.environ.get("TDF_YEAR") or date.today().year),
-        help="Current Tour season year (default: TDF_YEAR or today)",
-    )
-    parser.add_argument(
-        "--history-year",
-        type=int,
-        default=int(os.environ.get("TDF_HISTORY_YEAR") or 0) or None,
-        help="Previous season to backfill (default: year-1)",
-    )
-    parser.add_argument(
         "--skip-history",
         action="store_true",
-        help="Only fetch the current season from letour.fr",
+        help="Only fetch the 2026 season from letour.fr (skip 2025 Wayback backfill)",
+    )
+    parser.add_argument(
+        "--enrich-only",
+        action="store_true",
+        help="Re-apply data/stage_catalog.json to existing CSVs (no network fetch)",
     )
     args = parser.parse_args()
-    history_year = args.history_year if args.history_year is not None else args.year - 1
+    if args.enrich_only:
+        return enrich_existing_csvs()
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     session = _session()
 
-    print(f"Fetching current season {args.year} from letour.fr…")
-    current_df, stage_meta, gc_after_latest = fetch_letour_year(session, args.year)
+    print(f"Fetching current season {CURRENT_YEAR} from letour.fr…")
+    current_df, stage_meta, gc_after_latest = fetch_letour_year(session, CURRENT_YEAR)
     print(f"  labeled rows: {len(current_df)}")
 
     history_df = _empty_frame()
-    if not args.skip_history and history_year:
-        print(f"Fetching history year {history_year} via Wayback PCS…")
+    if not args.skip_history:
+        print(f"Fetching history year {HISTORY_YEAR} via Wayback PCS…")
         try:
-            history_df = fetch_pcs_wayback_year(session, year=history_year)
+            history_df = fetch_pcs_wayback_year(session, year=HISTORY_YEAR)
             print(f"  history rows: {len(history_df)}")
         except Exception as exc:  # noqa: BLE001
-            print(f"  warn: history fetch failed: {exc}")
+            print(f"  warn: history fetch failed: {exc}", file=sys.stderr)
 
     # Merge: keep non-overlapping years from existing file, replace fetched years
     existing = load_existing_data()
-    if not existing.empty:
-        fetched_years = set()
-        if not current_df.empty:
-            fetched_years.add(args.year)
-        if not history_df.empty:
-            fetched_years.add(history_year)
+    fetched_years: set[int] = set()
+    if not current_df.empty:
+        if not existing.empty:
+            existing_cur = existing[existing["year"] == CURRENT_YEAR]
+            if not existing_cur.empty and len(current_df) < len(existing_cur) * 0.8:
+                print(
+                    "error: fetched fewer CURRENT_YEAR rows than existing "
+                    f"({len(current_df)} < 80% of {len(existing_cur)}); aborting overwrite",
+                    file=sys.stderr,
+                )
+                return 1
+        fetched_years.add(CURRENT_YEAR)
+    elif not existing.empty and (existing["year"] == CURRENT_YEAR).any():
+        print(
+            "warn: current-year fetch returned no rows; keeping existing CURRENT_YEAR data",
+            file=sys.stderr,
+        )
+    if not history_df.empty:
+        fetched_years.add(HISTORY_YEAR)
+    if not existing.empty and fetched_years:
         keep = existing[~existing["year"].isin(fetched_years)]
     else:
-        keep = _empty_frame()
+        keep = existing if not existing.empty else _empty_frame()
 
     parts = [p for p in (keep, history_df, current_df) if not p.empty]
     data = pd.concat(parts, ignore_index=True) if parts else _empty_frame()
     data = data.drop_duplicates(subset=ID_KEY, keep="last")
 
-    # Score stage = newly completed stage vs previous data.csv (if advanced)
+    # New stage = newly completed stage vs previous data.csv (rest days → no advance)
     prev = existing
     score_stage = None
+    has_new_stage = False
     if not current_df.empty and not prev.empty:
-        prev_cur = prev[prev["year"] == args.year]
+        prev_cur = prev[prev["year"] == CURRENT_YEAR]
         new_cur = current_df
         if not prev_cur.empty:
             prev_max = int(prev_cur["stage_number"].max())
             new_max = int(new_cur["stage_number"].max())
             if new_max > prev_max:
+                has_new_stage = True
                 score_stage = new_cur[new_cur["stage_number"] == new_max].copy()
                 print(f"  new stage available for scoring: {new_max}")
+            else:
+                print(
+                    f"  no new stage (latest still {new_max}) — "
+                    "rest day or results not posted yet"
+                )
+        else:
+            # First time we see 2026 rows in an existing file
+            has_new_stage = True
+    elif not current_df.empty and prev.empty:
+        # Bootstrap empty repo: write data, but nothing to score yet
+        has_new_stage = True
+        print("  bootstrap: writing initial data.csv (no score stage)")
+
+    if not has_new_stage and not existing.empty:
+        # Leave committed CSVs untouched so CI does not push or re-score.
+        info_path = DATA_DIR / "latest_score_meta.json"
+        info: dict[str, Any] = {}
+        if info_path.exists():
+            try:
+                info = json.loads(info_path.read_text())
+            except json.JSONDecodeError:
+                info = {}
+        info["has_new_stage"] = False
+        info["n_score"] = 0
+        info.pop("score_stage_number", None)
+        info.pop("score_stage_date", None)
+        # Keep skore_project from last real stage for reference; scoring is gated off.
+        info_path.write_text(json.dumps(info, indent=2) + "\n")
+        print("No new stage data tonight; leaving data/*.csv unchanged.")
+        return 0
 
     next_stage = build_next_stage(
-        data, stage_meta, args.year, gc_after_latest=gc_after_latest
+        data, stage_meta, CURRENT_YEAR, gc_after_latest=gc_after_latest
     )
-    info = write_outputs(data, next_stage, score_stage=score_stage)
+    info = write_outputs(
+        data, next_stage, score_stage=score_stage, has_new_stage=has_new_stage
+    )
     print(
         f"Wrote data.csv ({info['n_data']} rows through stage "
         f"{info['latest_stage_number']} / {info['latest_stage_date']}), "

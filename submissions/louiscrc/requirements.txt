@@ -1,1 +1,0 @@
-# Optional extras — challenge baseline already includes skore, sklearn, skrub, pandas.

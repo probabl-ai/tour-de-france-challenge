@@ -20,7 +20,7 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -30,8 +30,11 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import re
           import subprocess
           from pathlib import Path
+
+          SAFE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
           base = os.environ.get("GITHUB_BASE_REF") or "main"
           try:
@@ -47,7 +50,10 @@ jobs:
           for line in diff.splitlines():
               parts = Path(line).parts
               if len(parts) >= 2 and parts[0] == "submissions" and not parts[1].startswith("_"):
-                  changed.add(parts[1])
+                  if SAFE.match(parts[1]):
+                      changed.add(parts[1])
+                  else:
+                      print(f"skip unsafe submission name: {parts[1]!r}")
 
           # Always validate touched folders that still exist with submission.py
           include = []
@@ -59,7 +65,12 @@ jobs:
           # Fallback: if path filter fired but git diff empty, check all non-skeleton
           if not include:
               for p in sorted(Path("submissions").iterdir()):
-                  if p.is_dir() and not p.name.startswith("_") and (p / "submission.py").exists():
+                  if (
+                      p.is_dir()
+                      and not p.name.startswith("_")
+                      and SAFE.match(p.name)
+                      and (p / "submission.py").exists()
+                  ):
                       include.append({"submission": p.name})
 
           matrix = {"include": include} if include else {"include": [{"submission": "_skeleton"}]}
@@ -77,34 +88,44 @@ jobs:
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
 
       - name: Create isolated environment
+        env:
+          SUBMISSION: ${{ matrix.submission }}
         run: |
+          if ! [[ "$SUBMISSION" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid submission name: $SUBMISSION"
+            exit 1
+          fi
           python -m venv .venv-sub
           source .venv-sub/bin/activate
           pip install -U pip
           pip install -e .
-          REQ="submissions/${{ matrix.submission }}/requirements.txt"
+          REQ="submissions/${SUBMISSION}/requirements.txt"
           if [ -f "$REQ" ]; then
             pip install -r "$REQ"
           fi
 
       - name: Check skore usage
+        env:
+          SUBMISSION: ${{ matrix.submission }}
         run: |
           source .venv-sub/bin/activate
-          python scripts/check_skore_usage.py "submissions/${{ matrix.submission }}"
+          python scripts/check_skore_usage.py "submissions/${SUBMISSION}"
 
       - name: Dry-run evaluation (no Hub publish)
+        env:
+          SUBMISSION: ${{ matrix.submission }}
         run: |
           source .venv-sub/bin/activate
           python scripts/run_submission.py \
-            "submissions/${{ matrix.submission }}" \
+            "submissions/${SUBMISSION}" \
             --allow-holdout \
-            --hub-key "${{ matrix.submission }}"
+            --hub-key "${SUBMISSION}"

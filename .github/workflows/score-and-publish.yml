@@ -1,13 +1,13 @@
-name: Score and publish day's PRs
+name: Score and publish open PRs
 
 # Manual scoring against committed data/test.csv (no re-fetch).
-# Discovers open PRs created/updated on the score day (Europe/Paris).
+# Scores all open submission PRs (models retrained each run).
 
 on:
   workflow_dispatch:
     inputs:
       score_day:
-        description: "Score calendar day YYYY-MM-DD (Paris); default from latest_score_meta.json"
+        description: "Hub project day YYYY-MM-DD (Paris); default from latest_score_meta.json"
         required: false
         type: string
       skore_project:
@@ -27,23 +27,27 @@ jobs:
   discover:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      has_prs: ${{ steps.matrix.outputs.has_prs }}
+      matrix: ${{ steps.matrix.outputs.matrix || steps.matrix_empty.outputs.matrix }}
+      has_prs: ${{ steps.matrix.outputs.has_prs || steps.matrix_empty.outputs.has_prs }}
       skore_project: ${{ steps.meta.outputs.skore_project }}
       has_test: ${{ steps.meta.outputs.has_test }}
       score_day: ${{ steps.meta.outputs.score_day }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - id: meta
+        env:
+          SCORE_DAY_OVERRIDE: ${{ inputs.score_day }}
+          SKORE_PROJECT_OVERRIDE: ${{ inputs.skore_project }}
         run: |
           python - <<'PY'
           import json
+          import os
           from pathlib import Path
           from datetime import datetime
           info = json.loads(Path("data/latest_score_meta.json").read_text()) if Path("data/latest_score_meta.json").exists() else {}
-          override_day = """${{ inputs.score_day }}""".strip()
-          override_proj = """${{ inputs.skore_project }}""".strip()
+          override_day = (os.environ.get("SCORE_DAY_OVERRIDE") or "").strip()
+          override_proj = (os.environ.get("SKORE_PROJECT_OVERRIDE") or "").strip()
           score_day = (override_day or info.get("score_stage_date") or "")[:10]
           project = override_proj or info.get("skore_project") or "unknown_juillet"
           if not override_proj and score_day:
@@ -53,31 +57,32 @@ jobs:
               except ValueError:
                   pass
           n_score = int(info.get("n_score") or 0)
-          has_test = Path("data/test.csv").exists() and Path("data/test.csv").stat().st_size > 0
+          test_ok = Path("data/test.csv").exists() and Path("data/test.csv").stat().st_size > 0
+          # Manual backfill requires a real score cut (test.csv + n_score), not a rest-day meta.
+          has_test = test_ok and n_score > 0
           print(f"skore_project={project}")
-          print(f"has_test={'true' if has_test and n_score > 0 else 'false'}")
+          print(f"has_test={'true' if has_test else 'false'}")
           print(f"score_day={score_day}")
           Path.home().joinpath("meta_out.txt").write_text(
-              f"skore_project={project}\nhas_test={'true' if has_test and n_score > 0 else 'false'}\nscore_day={score_day}\n"
+              f"skore_project={project}\nhas_test={'true' if has_test else 'false'}\nscore_day={score_day}\n"
           )
           PY
           while IFS= read -r line; do echo "$line" >> "$GITHUB_OUTPUT"; done < "$HOME/meta_out.txt"
 
       - id: matrix
+        if: steps.meta.outputs.has_test == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          ONLY_PR: ${{ inputs.pr_number }}
         run: |
-          python scripts/discover_day_prs.py \
-            --score-day "${{ steps.meta.outputs.score_day }}" \
-            --github-output
+          python scripts/discover_day_prs.py --github-output
           # Optional filter to a single PR
-          ONLY="${{ inputs.pr_number }}"
-          if [ -n "$ONLY" ]; then
-            python - <<PY
+          if [ -n "${ONLY_PR:-}" ]; then
+            ONLY_PR="$ONLY_PR" python - <<'PY'
           import json, os
           from pathlib import Path
           matrix = json.loads(Path("matrix.json").read_text())
-          only = int("""${{ inputs.pr_number }}""".strip())
+          only = int(os.environ["ONLY_PR"].strip())
           matrix["include"] = [r for r in matrix.get("include", []) if int(r["pr_number"]) == only]
           text = json.dumps(matrix, separators=(",", ":"))
           Path("matrix.json").write_text(text + "\n")
@@ -88,6 +93,13 @@ jobs:
           PY
           fi
 
+      - id: matrix_empty
+        if: steps.meta.outputs.has_test != 'true'
+        run: |
+          echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+          echo 'has_prs=false' >> "$GITHUB_OUTPUT"
+          echo "No test.csv score cut committed; refusing to publish."
+
   score:
     needs: discover
     if: needs.discover.outputs.has_test == 'true' && needs.discover.outputs.has_prs == 'true'
@@ -97,34 +109,48 @@ jobs:
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
       - name: Checkout main (data + harness)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Overlay submission from PR #${{ matrix.pr_number }}
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ matrix.pr_number }}
+          SUBMISSION: ${{ matrix.submission }}
         run: |
-          git fetch origin "pull/${{ matrix.pr_number }}/head:pr-${{ matrix.pr_number }}"
-          git checkout "pr-${{ matrix.pr_number }}" -- submissions/
-          test -f "submissions/${{ matrix.submission }}/submission.py"
+          if ! [[ "$SUBMISSION" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid submission name: $SUBMISSION"
+            exit 1
+          fi
+          git fetch origin "pull/${PR_NUMBER}/head:pr-${PR_NUMBER}"
+          git checkout "pr-${PR_NUMBER}" -- submissions/
+          test -f "submissions/${SUBMISSION}/submission.py"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
 
       - name: Create isolated environment
+        env:
+          SUBMISSION: ${{ matrix.submission }}
         run: |
+          if ! [[ "$SUBMISSION" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid submission name: $SUBMISSION"
+            exit 1
+          fi
           python -m venv .venv-sub
           source .venv-sub/bin/activate
           pip install -U pip
           pip install -e .
-          REQ="submissions/${{ matrix.submission }}/requirements.txt"
+          REQ="submissions/${SUBMISSION}/requirements.txt"
           if [ -f "$REQ" ]; then pip install -r "$REQ"; fi
 
       - name: Check skore usage
+        env:
+          SUBMISSION: ${{ matrix.submission }}
         run: |
           source .venv-sub/bin/activate
-          python scripts/check_skore_usage.py "submissions/${{ matrix.submission }}"
+          python scripts/check_skore_usage.py "submissions/${SUBMISSION}"
 
       - name: Evaluate and publish to Skore Hub
         env:
@@ -132,16 +158,26 @@ jobs:
           SKORE_WORKSPACE: tour-de-france-challenge
           SKORE_PROJECT: ${{ needs.discover.outputs.skore_project }}
           PUBLISH_TO_HUB: "1"
-          SUBMISSION_SUMMARY: "submission_summary_${{ matrix.hub_key }}.json"
+          SUBMISSION: ${{ matrix.submission }}
+          HUB_KEY: ${{ matrix.hub_key }}
+          SUBMISSION_SUMMARY: submission_summary_${{ matrix.hub_key }}.json
         run: |
+          set +x
+          if [ -n "${SKORE_HUB_API_KEY:-}" ]; then
+            echo "::add-mask::${SKORE_HUB_API_KEY}"
+          fi
+          if ! [[ "$SUBMISSION" =~ ^[a-zA-Z0-9_-]+$ ]] || ! [[ "$HUB_KEY" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid submission/hub_key"
+            exit 1
+          fi
           source .venv-sub/bin/activate
           python scripts/run_submission.py \
-            "submissions/${{ matrix.submission }}" \
+            "submissions/${SUBMISSION}" \
             --publish \
-            --hub-key "${{ matrix.hub_key }}"
+            --hub-key "${HUB_KEY}"
 
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: summary-pr-${{ matrix.pr_number }}-${{ matrix.hub_key }}
           path: submission_summary_${{ matrix.hub_key }}.json
