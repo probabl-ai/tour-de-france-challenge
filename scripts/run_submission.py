@@ -101,7 +101,7 @@ def publish_report(report: Any, key: str, workspace: str, project: str) -> None:
     from skore import Project, login
 
     login(mode="hub")
-    hub_project = Project(name=f"{workspace}/{project}", mode="hub")
+    hub_project = Project(name=project, mode="hub", workspace=workspace)
     hub_project.put(key, report)
     print(f"published report key={key!r} to {workspace}/{project}")
 
