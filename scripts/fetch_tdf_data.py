@@ -731,6 +731,19 @@ def build_next_stage(
     return pd.DataFrame(rows, columns=COLUMNS) if rows else _empty_frame()
 
 
+def hub_project_name(stage_date: str | None, stage_number: int | None = None) -> str:
+    """Hub project slug: ``{day}_juillet`` (e.g. ``8_juillet`` for 8 July)."""
+    if stage_date:
+        try:
+            day = datetime.strptime(str(stage_date)[:10], "%Y-%m-%d").day
+            return f"{day}_juillet"
+        except ValueError:
+            pass
+    if stage_number is not None:
+        return f"stage-{stage_number}_juillet"
+    return "unknown_juillet"
+
+
 def write_outputs(
     data: pd.DataFrame,
     next_stage: pd.DataFrame,
@@ -781,20 +794,16 @@ def write_outputs(
         info["score_stage_number"] = int(score_stage["stage_number"].iloc[0])
         sd = score_stage["stage_date"].dropna()
         info["score_stage_date"] = str(sd.iloc[0]) if not sd.empty else None
-        info["skore_project"] = (
-            f"tdf-{info['score_stage_date']}"
-            if info["score_stage_date"]
-            else f"tdf-stage-{info['score_stage_number']}"
+        info["skore_project"] = hub_project_name(
+            info["score_stage_date"], info["score_stage_number"]
         )
     else:
         # No dedicated score file: PR dry-runs hold out the latest data stage.
         test_path = DATA_DIR / "test.csv"
         if test_path.exists():
             test_path.unlink()
-        info["skore_project"] = (
-            f"tdf-{info['next_stage_date']}"
-            if info.get("next_stage_date")
-            else f"tdf-stage-{info.get('next_stage_number')}"
+        info["skore_project"] = hub_project_name(
+            info.get("next_stage_date"), info.get("next_stage_number")
         )
 
     (DATA_DIR / "latest_score_meta.json").write_text(json.dumps(info, indent=2) + "\n")

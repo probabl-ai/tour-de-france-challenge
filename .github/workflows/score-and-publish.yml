@@ -1,22 +1,27 @@
-name: Score and publish to Skore Hub
+name: Score and publish day's PRs
 
 # Manual scoring against committed data/test.csv (no re-fetch).
-# Use after a data cut / for backfill experiments.
+# Discovers open PRs created/updated on the score day (Europe/Paris).
 
 on:
   workflow_dispatch:
     inputs:
-      submission:
-        description: "Submission folder under submissions/ (empty = all)"
+      score_day:
+        description: "Score calendar day YYYY-MM-DD (Paris); default from latest_score_meta.json"
         required: false
         type: string
       skore_project:
-        description: "Hub project name (default: from data/latest_score_meta.json)"
+        description: "Hub project override (default: {day}_juillet from meta)"
+        required: false
+        type: string
+      pr_number:
+        description: "Optional: score only this PR number"
         required: false
         type: string
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   discover:
@@ -25,6 +30,7 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       skore_project: ${{ steps.meta.outputs.skore_project }}
       has_test: ${{ steps.meta.outputs.has_test }}
+      score_day: ${{ steps.meta.outputs.score_day }}
     steps:
       - uses: actions/checkout@v4
 
@@ -33,41 +39,51 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
+          from datetime import datetime
           info = json.loads(Path("data/latest_score_meta.json").read_text()) if Path("data/latest_score_meta.json").exists() else {}
-          project = """${{ inputs.skore_project }}""".strip() or info.get("skore_project") or "tdf-unknown"
+          override_day = """${{ inputs.score_day }}""".strip()
+          override_proj = """${{ inputs.skore_project }}""".strip()
+          score_day = (override_day or info.get("score_stage_date") or "")[:10]
+          project = override_proj or info.get("skore_project") or "unknown_juillet"
+          if not override_proj and score_day:
+              try:
+                  day = datetime.strptime(score_day, "%Y-%m-%d").day
+                  project = f"{day}_juillet"
+              except ValueError:
+                  pass
           n_score = int(info.get("n_score") or 0)
           has_test = Path("data/test.csv").exists() and Path("data/test.csv").stat().st_size > 0
           print(f"skore_project={project}")
           print(f"has_test={'true' if has_test and n_score > 0 else 'false'}")
+          print(f"score_day={score_day}")
           Path.home().joinpath("meta_out.txt").write_text(
-              f"skore_project={project}\nhas_test={'true' if has_test and n_score > 0 else 'false'}\n"
+              f"skore_project={project}\nhas_test={'true' if has_test and n_score > 0 else 'false'}\nscore_day={score_day}\n"
           )
           PY
           while IFS= read -r line; do echo "$line" >> "$GITHUB_OUTPUT"; done < "$HOME/meta_out.txt"
 
       - id: matrix
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python - <<'PY'
+          python scripts/discover_day_prs.py \
+            --score-day "${{ steps.meta.outputs.score_day }}" \
+            --github-output
+          # Optional filter to a single PR
+          ONLY="${{ inputs.pr_number }}"
+          if [ -n "$ONLY" ]; then
+            python - <<PY
           import json, os
           from pathlib import Path
-          only = """${{ inputs.submission }}""".strip()
-          root = Path("submissions")
-          names = []
-          if only:
-              p = root / only
-              if p.is_dir() and (p / "submission.py").exists():
-                  names = [only]
-          else:
-              names = sorted(
-                  p.name for p in root.iterdir()
-                  if p.is_dir() and not p.name.startswith("_") and (p / "submission.py").exists()
-              )
-          matrix = {"include": [{"submission": n} for n in names]} if names else {"include": []}
+          matrix = json.loads(Path("matrix.json").read_text())
+          only = int("""${{ inputs.pr_number }}""".strip())
+          matrix["include"] = [r for r in matrix.get("include", []) if int(r["pr_number"]) == only]
           Path("matrix.json").write_text(json.dumps(matrix))
           print(json.dumps(matrix))
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
               fh.write(f"matrix={json.dumps(matrix)}\n")
           PY
+          fi
 
   score:
     needs: discover
@@ -77,7 +93,16 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main (data + harness)
+        uses: actions/checkout@v4
+
+      - name: Overlay submission from PR #${{ matrix.pr_number }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin "pull/${{ matrix.pr_number }}/head:pr-${{ matrix.pr_number }}"
+          git checkout "pr-${{ matrix.pr_number }}" -- submissions/
+          test -f "submissions/${{ matrix.submission }}/submission.py"
 
       - uses: actions/setup-python@v5
         with:
@@ -104,17 +129,17 @@ jobs:
           SKORE_WORKSPACE: tour-de-france-challenge
           SKORE_PROJECT: ${{ needs.discover.outputs.skore_project }}
           PUBLISH_TO_HUB: "1"
-          SUBMISSION_SUMMARY: "submission_summary_${{ matrix.submission }}.json"
+          SUBMISSION_SUMMARY: "submission_summary_${{ matrix.hub_key }}.json"
         run: |
           source .venv-sub/bin/activate
           python scripts/run_submission.py \
             "submissions/${{ matrix.submission }}" \
             --publish \
-            --hub-key "${{ matrix.submission }}"
+            --hub-key "${{ matrix.hub_key }}"
 
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: summary-${{ matrix.submission }}
-          path: submission_summary_${{ matrix.submission }}.json
+          name: summary-pr-${{ matrix.pr_number }}-${{ matrix.hub_key }}
+          path: submission_summary_${{ matrix.hub_key }}.json
           if-no-files-found: ignore

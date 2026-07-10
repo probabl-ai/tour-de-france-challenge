@@ -1,23 +1,25 @@
 # Tour de France Skore Challenge
 
 Predict the **next stage finishing rank** of every rider still in the Tour de France.
-Each evening, CI refreshes the dataset from [letour.fr](https://www.letour.fr/en/rankings)
-(current season) plus the previous season via Wayback/PCS, scores every accepted submission
-with [skore](https://docs.skore.probabl.ai/), and publishes reports to a private
-[Skore Hub](https://skore.probabl.ai/) project for that race day.
+Each evening, CI refreshes the dataset from [letour.fr](https://www.letour.fr/en/rankings),
+scores **open PRs** that were opened or updated that calendar day (Europe/Paris), and
+publishes reports to [Skore Hub](https://skore.probabl.ai/).
 
 ## How it works
 
-1. **Nightly fetch** — `scripts/fetch_tdf_data.py` updates `data/data.csv` through the latest
-   completed stage and writes blind features for the upcoming stage to `next_stage.csv`.
-2. **Score submissions** — fit on `data.csv` (excluding the newly completed stage), evaluate on
-   that stage’s labels, push an `EstimatorReport` to Hub.
-3. **Iterate during the day** — develop against `data/next_stage.csv` (no labels) and open a PR.
+1. **During the day** — develop against `data/next_stage.csv` (no labels) and open a PR with
+   your code under `submissions/<github-login>/`. **Do not merge** — leave the PR open.
+2. **Nightly fetch** — `scripts/fetch_tdf_data.py` updates `data/data.csv` through the stage
+   that just finished and writes the next blind `next_stage.csv`.
+3. **Nightly score** — only open PRs **created or last updated on that stage’s calendar day**
+   (Paris) are checked out and evaluated; reports go to Hub project `{day}_juillet`
+   (e.g. `8_juillet` for 8 July).
 
 ```text
 evening cron
-  → fetch letour.fr (+ Wayback history) → update data.csv / next_stage.csv
-  → for each submission: isolated venv → skore check → evaluate → Hub put
+  → fetch letour.fr → update data.csv / next_stage.csv / test.csv
+  → discover open PRs touched today (Paris)
+  → for each PR: overlay submissions/ → skore check → evaluate → Hub put
 ```
 
 ### `data.csv` vs prediction day
@@ -45,9 +47,10 @@ See [`data/README.md`](data/README.md).
    ```
 
 2. Implement `build_estimator()` in `submissions/<login>/submission.py` (must use **skore**).
-3. Open a PR. [`validate-pr.yml`](.github/workflows/validate-pr.yml) checks the contract and
-   runs a dry evaluation (no Hub publish).
-4. After merge, the evening job scores your model and publishes to Hub.
+3. Open a PR **the same calendar day** as the stage you are predicting (Europe/Paris).
+   [`validate-pr.yml`](.github/workflows/validate-pr.yml) checks the contract (no Hub publish).
+4. Leave the PR open. That evening, if your PR was opened/updated that day, CI scores it
+   and publishes to Hub project `{day}_juillet`.
 
 Details: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
@@ -95,7 +98,7 @@ python scripts/run_submission.py submissions/_skeleton --allow-holdout
 | --- | --- |
 | `SKORE_API_KEY` | Mapped to `SKORE_HUB_API_KEY` for `skore.login(mode="hub")` |
 
-Hub workspace is public config: `tour-de-france-challenge` (projects are named `tdf-YYYY-MM-DD`).
+Hub workspace: `tour-de-france-challenge`. Projects are named `{day}_juillet` (e.g. `9_juillet`).
 
 Optional: `TDF_YEAR` repository variable to override the Tour season year.
 
@@ -103,9 +106,9 @@ Optional: `TDF_YEAR` repository variable to override the Tour season year.
 
 ```text
 data/                 # data.csv + next_stage.csv (+ ephemeral test.csv)
-scripts/              # fetch, skore gate, evaluation harness
-submissions/          # one folder per participant (+ _skeleton)
-.github/workflows/    # nightly fetch+score, PR validation
+scripts/              # fetch, PR discovery, skore gate, evaluation harness
+submissions/          # skeleton (+ PR branches carry participant folders)
+.github/workflows/    # nightly fetch+score, PR validation, manual backfill
 ```
 
 ## License

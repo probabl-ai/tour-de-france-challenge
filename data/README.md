@@ -8,7 +8,7 @@ Labeled history for the Tour de France stage-rank challenge.
 | --- | --- |
 | `data.csv` | **Training set** — all labeled rider–stage rows through the latest completed stage (e.g. night of 9 July → includes 9 July). Same file participants fit on. |
 | `next_stage.csv` | **Prediction target** — features for the *next* stage only, **without** `stage_rank` (e.g. 10 July). |
-| `test.csv` | Written only by the evening job when a **new** stage just completed; used once to score submissions, then that stage is already part of `data.csv`. Absent during the day. |
+| `test.csv` | Written only by the evening job when a **new** stage just completed; used to score that day's open PRs. Absent during the day. |
 
 There is **no** separate `train.csv`. `data.csv` *is* the train set.
 
@@ -18,7 +18,7 @@ There is **no** separate `train.csv`. `data.csv` *is* the train set.
 2. If stage 6 was not yet in the previous `data.csv`, write `test.csv` = stage 6 (for scoring).
 3. Append stage 6 into `data.csv` (now history through 9 July).
 4. Write `next_stage.csv` = stage 7 (10 July) features, no labels.
-5. Score submissions: fit on `data.csv` **without** stage 6, evaluate on `test.csv`, publish to Hub project `tdf-YYYY-MM-DD`.
+5. Score **open PRs** created/updated on 9 July (Paris); publish to Hub project `9_juillet`.
 
 ## Target
 

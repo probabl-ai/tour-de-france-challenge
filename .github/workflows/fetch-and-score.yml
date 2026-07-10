@@ -1,4 +1,4 @@
-name: Fetch data and score submissions
+name: Fetch data and score day's PRs
 
 on:
   schedule:
@@ -10,9 +10,14 @@ on:
         description: "Tour de France year (empty = TDF_YEAR var or current year)"
         required: false
         type: string
+      score_day:
+        description: "Override score calendar day YYYY-MM-DD (Paris); default from fetch meta"
+        required: false
+        type: string
 
 permissions:
   contents: write
+  pull-requests: read
 
 concurrency:
   group: fetch-and-score
@@ -24,6 +29,7 @@ jobs:
     outputs:
       skore_project: ${{ steps.meta.outputs.skore_project }}
       has_test: ${{ steps.meta.outputs.has_test }}
+      score_day: ${{ steps.meta.outputs.score_day }}
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - name: Checkout
@@ -57,7 +63,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/*.csv data/latest_score_meta.json || true
-          # Drop legacy train.csv if the fetch removed it
           git add -u data/train.csv 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No data changes to commit"
@@ -72,43 +77,31 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          meta_path = Path("data/latest_score_meta.json")
-          if meta_path.exists():
-              info = json.loads(meta_path.read_text())
-          else:
-              info = {}
-          project = info.get("skore_project") or "tdf-unknown"
+          info = json.loads(Path("data/latest_score_meta.json").read_text()) if Path("data/latest_score_meta.json").exists() else {}
+          override = """${{ inputs.score_day }}""".strip()
+          score_day = override or info.get("score_stage_date") or ""
+          project = info.get("skore_project") or "unknown_juillet"
           n_score = int(info.get("n_score") or 0)
           has_test = "true" if n_score > 0 else "false"
           print(f"skore_project={project}")
           print(f"has_test={has_test}")
-          with open(Path.home() / "meta_out.txt", "w") as f:
-              f.write(f"skore_project={project}\n")
-              f.write(f"has_test={has_test}\n")
+          print(f"score_day={score_day}")
+          Path.home().joinpath("meta_out.txt").write_text(
+              f"skore_project={project}\nhas_test={has_test}\nscore_day={score_day}\n"
+          )
           PY
           while IFS= read -r line; do
             echo "$line" >> "$GITHUB_OUTPUT"
           done < "$HOME/meta_out.txt"
 
-      - name: Build submission matrix
+      - name: Discover open PRs for score day
         id: matrix
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          root = Path("submissions")
-          names = sorted(
-              p.name
-              for p in root.iterdir()
-              if p.is_dir() and not p.name.startswith("_") and (p / "submission.py").exists()
-          )
-          matrix = {"include": [{"submission": n} for n in names]} if names else {"include": []}
-          Path("matrix.json").write_text(json.dumps(matrix))
-          print(json.dumps(matrix))
-          import os
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
-              fh.write(f"matrix={json.dumps(matrix)}\n")
-          PY
+          python scripts/discover_day_prs.py \
+            --score-day "${{ steps.meta.outputs.score_day }}" \
+            --github-output
 
   score:
     needs: fetch
@@ -118,8 +111,21 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.fetch.outputs.matrix) }}
     steps:
-      - name: Checkout
+      - name: Checkout main (data + harness)
         uses: actions/checkout@v4
+
+      - name: Overlay submission from PR #${{ matrix.pr_number }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch origin "pull/${{ matrix.pr_number }}/head:pr-${{ matrix.pr_number }}"
+          # Keep main data/scripts; take submissions/ from the PR head
+          git checkout "pr-${{ matrix.pr_number }}" -- submissions/
+          if [ ! -f "submissions/${{ matrix.submission }}/submission.py" ]; then
+            echo "Missing submissions/${{ matrix.submission }}/submission.py on PR head"
+            ls -la submissions/ || true
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -148,18 +154,19 @@ jobs:
           SKORE_WORKSPACE: tour-de-france-challenge
           SKORE_PROJECT: ${{ needs.fetch.outputs.skore_project }}
           PUBLISH_TO_HUB: "1"
-          SUBMISSION_SUMMARY: "submission_summary_${{ matrix.submission }}.json"
+          SUBMISSION_SUMMARY: "submission_summary_${{ matrix.hub_key }}.json"
         run: |
           source .venv-sub/bin/activate
+          echo "Scoring PR #${{ matrix.pr_number }} as ${{ matrix.hub_key }} → ${SKORE_PROJECT}"
           python scripts/run_submission.py \
             "submissions/${{ matrix.submission }}" \
             --publish \
-            --hub-key "${{ matrix.submission }}"
+            --hub-key "${{ matrix.hub_key }}"
 
       - name: Upload summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: summary-${{ matrix.submission }}
-          path: submission_summary_${{ matrix.submission }}.json
+          name: summary-pr-${{ matrix.pr_number }}-${{ matrix.hub_key }}
+          path: submission_summary_${{ matrix.hub_key }}.json
           if-no-files-found: ignore
