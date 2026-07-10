@@ -93,7 +93,7 @@ python scripts/run_submission.py submissions/_skeleton --allow-holdout
 
 | Secret | Purpose |
 | --- | --- |
-| `SKORE_API_KEY` | Private workspace API key for `skore.login(mode="hub")` |
+| `SKORE_API_KEY` | Mapped to `SKORE_HUB_API_KEY` for `skore.login(mode="hub")` |
 
 Hub workspace is public config: `tour-de-france-challenge` (projects are named `tdf-YYYY-MM-DD`).
 

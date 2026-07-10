@@ -112,7 +112,7 @@ def main() -> int:
     parser.add_argument(
         "--publish",
         action="store_true",
-        help="Publish EstimatorReport to Skore Hub (requires SKORE_API_KEY)",
+        help="Publish EstimatorReport to Skore Hub (requires SKORE_HUB_API_KEY)",
     )
     parser.add_argument(
         "--allow-holdout",
@@ -182,8 +182,11 @@ def main() -> int:
         if not project:
             print("error: SKORE_PROJECT is required to publish", file=sys.stderr)
             return 1
-        if not os.environ.get("SKORE_API_KEY"):
-            print("error: SKORE_API_KEY is required to publish", file=sys.stderr)
+        # skore reads SKORE_HUB_API_KEY; accept legacy SKORE_API_KEY as alias.
+        if not os.environ.get("SKORE_HUB_API_KEY") and os.environ.get("SKORE_API_KEY"):
+            os.environ["SKORE_HUB_API_KEY"] = os.environ["SKORE_API_KEY"]
+        if not os.environ.get("SKORE_HUB_API_KEY"):
+            print("error: SKORE_HUB_API_KEY is required to publish", file=sys.stderr)
             return 1
         publish_report(report, key=key, workspace=workspace, project=project)
 

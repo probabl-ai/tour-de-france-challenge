@@ -144,7 +144,7 @@ jobs:
 
       - name: Evaluate and publish to Skore Hub
         env:
-          SKORE_API_KEY: ${{ secrets.SKORE_API_KEY }}
+          SKORE_HUB_API_KEY: ${{ secrets.SKORE_API_KEY }}
           SKORE_WORKSPACE: tour-de-france-challenge
           SKORE_PROJECT: ${{ needs.fetch.outputs.skore_project }}
           PUBLISH_TO_HUB: "1"
