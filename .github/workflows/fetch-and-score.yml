@@ -34,6 +34,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # PAT that can bypass main-protect (Contents: Read and write)
+          token: ${{ secrets.DATA_PUSH_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -60,7 +63,11 @@ jobs:
 
       - name: Commit updated CSVs
         run: |
-          git config user.name "github-actions[bot]"
+          if [ -z "${{ secrets.DATA_PUSH_TOKEN }}" ]; then
+            echo "::error::DATA_PUSH_TOKEN secret is missing; cannot push data to protected main."
+            exit 1
+          fi
+          git config user.name "tdf-data-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/*.csv data/latest_score_meta.json || true
           git add -u data/train.csv 2>/dev/null || true
