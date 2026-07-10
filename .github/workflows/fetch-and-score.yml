@@ -61,24 +61,29 @@ jobs:
 
       - name: Commit updated CSVs
         env:
-          DATA_PUSH_TOKEN: ${{ secrets.DATA_PUSH_TOKEN }}
+          DATA_PUSH_DEPLOY_KEY: ${{ secrets.DATA_PUSH_DEPLOY_KEY }}
         run: |
-          if [ -z "$DATA_PUSH_TOKEN" ]; then
-            echo "::error::DATA_PUSH_TOKEN secret is missing; cannot push data to protected main."
+          if [ -z "$DATA_PUSH_DEPLOY_KEY" ]; then
+            echo "::error::DATA_PUSH_DEPLOY_KEY secret is missing; cannot push data to protected main."
             exit 1
           fi
           git config user.name "tdf-data-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # PAT only for push (bypasses main-protect); checkout uses GITHUB_TOKEN
-          git remote set-url origin "https://x-access-token:${DATA_PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add data/*.csv data/latest_score_meta.json || true
           git add -u data/train.csv 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No data changes to commit"
-          else
-            git commit -m "chore(data): refresh Tour de France dataset"
-            git push
+            exit 0
           fi
+          git commit -m "chore(data): refresh Tour de France dataset"
+          # Write deploy key is a ruleset bypass actor (PAT cannot bypass main-protect)
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DATA_PUSH_DEPLOY_KEY" > ~/.ssh/tdf_data_deploy
+          chmod 600 ~/.ssh/tdf_data_deploy
+          ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null
+          git remote set-url origin "git@github.com:${GITHUB_REPOSITORY}.git"
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/tdf_data_deploy -o IdentitiesOnly=yes" git push
+          rm -f ~/.ssh/tdf_data_deploy
 
       - name: Read score metadata
         id: meta
