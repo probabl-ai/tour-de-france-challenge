@@ -162,7 +162,8 @@ def main() -> int:
 
     rows = discover(score_day)
     matrix = {"include": rows} if rows else {"include": []}
-    text = json.dumps(matrix)
+    # Compact JSON so GHA if-conditions can match '{"include":[]}' reliably
+    text = json.dumps(matrix, separators=(",", ":"))
     print(text)
     Path("matrix.json").write_text(text + "\n")
 
@@ -171,6 +172,7 @@ def main() -> int:
         if out:
             with open(out, "a", encoding="utf-8") as fh:
                 fh.write(f"matrix={text}\n")
+                fh.write(f"has_prs={'true' if rows else 'false'}\n")
                 fh.write(f"score_day={score_day}\n")
                 fh.write(f"n_prs={len(rows)}\n")
     return 0

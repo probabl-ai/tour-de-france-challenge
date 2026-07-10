@@ -826,13 +826,13 @@ def main() -> int:
     parser.add_argument(
         "--year",
         type=int,
-        default=int(os.environ.get("TDF_YEAR", date.today().year)),
+        default=int(os.environ.get("TDF_YEAR") or date.today().year),
         help="Current Tour season year (default: TDF_YEAR or today)",
     )
     parser.add_argument(
         "--history-year",
         type=int,
-        default=int(os.environ.get("TDF_HISTORY_YEAR", 0)) or None,
+        default=int(os.environ.get("TDF_HISTORY_YEAR") or 0) or None,
         help="Previous season to backfill (default: year-1)",
     )
     parser.add_argument(

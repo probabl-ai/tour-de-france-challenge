@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      has_prs: ${{ steps.matrix.outputs.has_prs }}
       skore_project: ${{ steps.meta.outputs.skore_project }}
       has_test: ${{ steps.meta.outputs.has_test }}
       score_day: ${{ steps.meta.outputs.score_day }}
@@ -78,16 +79,18 @@ jobs:
           matrix = json.loads(Path("matrix.json").read_text())
           only = int("""${{ inputs.pr_number }}""".strip())
           matrix["include"] = [r for r in matrix.get("include", []) if int(r["pr_number"]) == only]
-          Path("matrix.json").write_text(json.dumps(matrix))
-          print(json.dumps(matrix))
+          text = json.dumps(matrix, separators=(",", ":"))
+          Path("matrix.json").write_text(text + "\n")
+          print(text)
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
-              fh.write(f"matrix={json.dumps(matrix)}\n")
+              fh.write(f"matrix={text}\n")
+              fh.write(f"has_prs={'true' if matrix['include'] else 'false'}\n")
           PY
           fi
 
   score:
     needs: discover
-    if: needs.discover.outputs.has_test == 'true' && needs.discover.outputs.matrix != '{"include":[]}'
+    if: needs.discover.outputs.has_test == 'true' && needs.discover.outputs.has_prs == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

@@ -31,6 +31,7 @@ jobs:
       has_test: ${{ steps.meta.outputs.has_test }}
       score_day: ${{ steps.meta.outputs.score_day }}
       matrix: ${{ steps.matrix.outputs.matrix }}
+      has_prs: ${{ steps.matrix.outputs.has_prs }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -113,7 +114,7 @@ jobs:
 
   score:
     needs: fetch
-    if: needs.fetch.outputs.has_test == 'true' && needs.fetch.outputs.matrix != '{"include":[]}'
+    if: needs.fetch.outputs.has_test == 'true' && needs.fetch.outputs.has_prs == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
