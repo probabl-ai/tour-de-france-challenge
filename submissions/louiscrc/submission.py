@@ -5,7 +5,6 @@ Simple sklearn pipeline (no fancy tuning) — a floor to beat on Spearman ρ.
 
 from __future__ import annotations
 
-import numpy as np
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import Ridge
