@@ -1,4 +1,4 @@
-name: Fetch data and score day's PRs
+name: Fetch data and score open PRs
 
 on:
   schedule:
@@ -6,12 +6,8 @@ on:
     - cron: "0 18 * * *"
   workflow_dispatch:
     inputs:
-      year:
-        description: "Tour de France year (empty = TDF_YEAR var or current year)"
-        required: false
-        type: string
       score_day:
-        description: "Override score calendar day YYYY-MM-DD (Paris); default from fetch meta"
+        description: "Override Hub project day YYYY-MM-DD (Paris); default from fetch meta"
         required: false
         type: string
 
@@ -29,25 +25,27 @@ jobs:
     outputs:
       skore_project: ${{ steps.meta.outputs.skore_project }}
       has_test: ${{ steps.meta.outputs.has_test }}
+      has_new_stage: ${{ steps.meta.outputs.has_new_stage }}
       score_day: ${{ steps.meta.outputs.score_day }}
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      has_prs: ${{ steps.matrix.outputs.has_prs }}
+      matrix: ${{ steps.matrix.outputs.matrix || steps.matrix_empty.outputs.matrix }}
+      has_prs: ${{ steps.matrix.outputs.has_prs || steps.matrix_empty.outputs.has_prs }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
 
       - name: Install challenge tooling
         run: pip install -e .
 
       - name: Fetch Tour de France data
-        env:
-          TDF_YEAR: ${{ inputs.year || vars.TDF_YEAR }}
+        id: fetch_data
         run: |
           if ! python scripts/fetch_tdf_data.py; then
             echo "::warning::Live fetch failed."
@@ -56,6 +54,16 @@ jobs:
               exit 1
             else
               echo "Keeping committed data/*.csv from the repository."
+              # Ensure scoring is skipped when fetch failed (no new stage tonight).
+              python - <<'PY'
+              import json
+              from pathlib import Path
+              path = Path("data/latest_score_meta.json")
+              info = json.loads(path.read_text()) if path.exists() else {}
+              info["has_new_stage"] = False
+              info["n_score"] = 0
+              path.write_text(json.dumps(info, indent=2) + "\n")
+              PY
             fi
           fi
 
@@ -63,104 +71,171 @@ jobs:
         env:
           DATA_PUSH_DEPLOY_KEY: ${{ secrets.DATA_PUSH_DEPLOY_KEY }}
         run: |
-          if [ -z "$DATA_PUSH_DEPLOY_KEY" ]; then
-            echo "::error::DATA_PUSH_DEPLOY_KEY secret is missing; cannot push data to protected main."
-            exit 1
+          set +x
+          # Mask every line of the deploy key so it cannot appear in logs.
+          if [ -n "${DATA_PUSH_DEPLOY_KEY:-}" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              [ -n "$line" ] && echo "::add-mask::$line"
+            done < <(printf '%s\n' "$DATA_PUSH_DEPLOY_KEY")
           fi
-          git config user.name "tdf-data-bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/*.csv data/latest_score_meta.json || true
-          git add -u data/train.csv 2>/dev/null || true
-          if git diff --staged --quiet; then
-            echo "No data changes to commit"
-            exit 0
-          fi
-          git commit -m "chore(data): refresh Tour de France dataset"
-          # Write deploy key is a ruleset bypass actor (PAT cannot bypass main-protect)
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DATA_PUSH_DEPLOY_KEY" > ~/.ssh/tdf_data_deploy
-          chmod 600 ~/.ssh/tdf_data_deploy
-          ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null
-          git remote set-url origin "git@github.com:${GITHUB_REPOSITORY}.git"
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/tdf_data_deploy -o IdentitiesOnly=yes" git push
-          rm -f ~/.ssh/tdf_data_deploy
 
-      - name: Read score metadata
-        id: meta
-        run: |
-          python - <<'PY'
+          python - <<'PY' > "$HOME/commit_meta.env"
           import json
           from pathlib import Path
           info = json.loads(Path("data/latest_score_meta.json").read_text()) if Path("data/latest_score_meta.json").exists() else {}
-          override = """${{ inputs.score_day }}""".strip()
+          print(f"HAS_NEW_STAGE={'true' if info.get('has_new_stage') else 'false'}")
+          day = info.get("commit_day")
+          print(f"COMMIT_DAY={day if day is not None else ''}")
+          PY
+          # shellcheck disable=SC1090
+          source "$HOME/commit_meta.env"
+
+          if [ "$HAS_NEW_STAGE" != "true" ]; then
+            echo "No new stage tonight (rest day or results not posted); skipping data commit."
+            exit 0
+          fi
+
+          git add data/*.csv data/latest_score_meta.json data/stage_catalog.json || true
+          git add -u data/train.csv 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "No data file changes to commit"
+            exit 0
+          fi
+
+          if [ -z "${DATA_PUSH_DEPLOY_KEY:-}" ]; then
+            echo "::error::DATA_PUSH_DEPLOY_KEY secret is missing; cannot push data to protected main."
+            exit 1
+          fi
+
+          DAY="${COMMIT_DAY}"
+          if [ -z "$DAY" ]; then
+            echo "::error::commit_day missing from latest_score_meta.json"
+            exit 1
+          fi
+          MSG="New data for the ${DAY} july stage"
+
+          git config user.name "tdf-data-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "$MSG"
+
+          install -m 700 -d ~/.ssh
+          umask 077
+          printf '%s\n' "$DATA_PUSH_DEPLOY_KEY" > ~/.ssh/tdf_data_deploy
+          unset DATA_PUSH_DEPLOY_KEY
+          chmod 600 ~/.ssh/tdf_data_deploy
+          ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null
+          git remote set-url origin "git@github.com:${GITHUB_REPOSITORY}.git"
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/tdf_data_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            git push
+          shred -u ~/.ssh/tdf_data_deploy 2>/dev/null || rm -f ~/.ssh/tdf_data_deploy
+
+      - name: Read score metadata
+        id: meta
+        env:
+          SCORE_DAY_OVERRIDE: ${{ inputs.score_day }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          info = json.loads(Path("data/latest_score_meta.json").read_text()) if Path("data/latest_score_meta.json").exists() else {}
+          override = (os.environ.get("SCORE_DAY_OVERRIDE") or "").strip()
           score_day = override or info.get("score_stage_date") or ""
           project = info.get("skore_project") or "unknown_juillet"
+          has_new = bool(info.get("has_new_stage"))
           n_score = int(info.get("n_score") or 0)
-          has_test = "true" if n_score > 0 else "false"
+          has_test = "true" if has_new and n_score > 0 else "false"
+          has_new_stage = "true" if has_new else "false"
           print(f"skore_project={project}")
           print(f"has_test={has_test}")
+          print(f"has_new_stage={has_new_stage}")
           print(f"score_day={score_day}")
           Path.home().joinpath("meta_out.txt").write_text(
-              f"skore_project={project}\nhas_test={has_test}\nscore_day={score_day}\n"
+              f"skore_project={project}\n"
+              f"has_test={has_test}\n"
+              f"has_new_stage={has_new_stage}\n"
+              f"score_day={score_day}\n"
           )
           PY
           while IFS= read -r line; do
             echo "$line" >> "$GITHUB_OUTPUT"
           done < "$HOME/meta_out.txt"
 
-      - name: Discover open PRs for score day
+      - name: Discover open submission PRs
         id: matrix
+        if: steps.meta.outputs.has_new_stage == 'true' && steps.meta.outputs.has_test == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+        run: python scripts/discover_day_prs.py --github-output
+
+      - name: No scoring tonight
+        if: steps.meta.outputs.has_new_stage != 'true' || steps.meta.outputs.has_test != 'true'
+        id: matrix_empty
         run: |
-          python scripts/discover_day_prs.py \
-            --score-day "${{ steps.meta.outputs.score_day }}" \
-            --github-output
+          echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
+          echo 'has_prs=false' >> "$GITHUB_OUTPUT"
 
   score:
     needs: fetch
-    if: needs.fetch.outputs.has_test == 'true' && needs.fetch.outputs.has_prs == 'true'
+    if: >-
+      needs.fetch.outputs.has_new_stage == 'true'
+      && needs.fetch.outputs.has_test == 'true'
+      && needs.fetch.outputs.has_prs == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.fetch.outputs.matrix) }}
     steps:
       - name: Checkout main (data + harness)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Overlay submission from PR #${{ matrix.pr_number }}
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ matrix.pr_number }}
+          SUBMISSION: ${{ matrix.submission }}
         run: |
-          git fetch origin "pull/${{ matrix.pr_number }}/head:pr-${{ matrix.pr_number }}"
+          if ! [[ "$SUBMISSION" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid submission name: $SUBMISSION"
+            exit 1
+          fi
+          git fetch origin "pull/${PR_NUMBER}/head:pr-${PR_NUMBER}"
           # Keep main data/scripts; take submissions/ from the PR head
-          git checkout "pr-${{ matrix.pr_number }}" -- submissions/
-          if [ ! -f "submissions/${{ matrix.submission }}/submission.py" ]; then
-            echo "Missing submissions/${{ matrix.submission }}/submission.py on PR head"
+          git checkout "pr-${PR_NUMBER}" -- submissions/
+          if [ ! -f "submissions/${SUBMISSION}/submission.py" ]; then
+            echo "Missing submissions/${SUBMISSION}/submission.py on PR head"
             ls -la submissions/ || true
             exit 1
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
 
       - name: Create isolated environment
+        env:
+          SUBMISSION: ${{ matrix.submission }}
         run: |
+          if ! [[ "$SUBMISSION" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid submission name: $SUBMISSION"
+            exit 1
+          fi
           python -m venv .venv-sub
           source .venv-sub/bin/activate
           pip install -U pip
           pip install -e .
-          if [ -f "submissions/${{ matrix.submission }}/requirements.txt" ]; then
-            pip install -r "submissions/${{ matrix.submission }}/requirements.txt"
+          if [ -f "submissions/${SUBMISSION}/requirements.txt" ]; then
+            pip install -r "submissions/${SUBMISSION}/requirements.txt"
           fi
 
       - name: Check skore usage
+        env:
+          SUBMISSION: ${{ matrix.submission }}
         run: |
           source .venv-sub/bin/activate
-          python scripts/check_skore_usage.py "submissions/${{ matrix.submission }}"
+          python scripts/check_skore_usage.py "submissions/${SUBMISSION}"
 
       - name: Evaluate and publish to Skore Hub
         env:
@@ -168,18 +243,29 @@ jobs:
           SKORE_WORKSPACE: tour-de-france-challenge
           SKORE_PROJECT: ${{ needs.fetch.outputs.skore_project }}
           PUBLISH_TO_HUB: "1"
-          SUBMISSION_SUMMARY: "submission_summary_${{ matrix.hub_key }}.json"
+          SUBMISSION: ${{ matrix.submission }}
+          HUB_KEY: ${{ matrix.hub_key }}
+          PR_NUMBER: ${{ matrix.pr_number }}
+          SUBMISSION_SUMMARY: submission_summary_${{ matrix.hub_key }}.json
         run: |
+          set +x
+          if [ -n "${SKORE_HUB_API_KEY:-}" ]; then
+            echo "::add-mask::${SKORE_HUB_API_KEY}"
+          fi
+          if ! [[ "$SUBMISSION" =~ ^[a-zA-Z0-9_-]+$ ]] || ! [[ "$HUB_KEY" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid submission/hub_key"
+            exit 1
+          fi
           source .venv-sub/bin/activate
-          echo "Scoring PR #${{ matrix.pr_number }} as ${{ matrix.hub_key }} → ${SKORE_PROJECT}"
+          echo "Scoring PR #${PR_NUMBER} as ${HUB_KEY} → ${SKORE_PROJECT}"
           python scripts/run_submission.py \
-            "submissions/${{ matrix.submission }}" \
+            "submissions/${SUBMISSION}" \
             --publish \
-            --hub-key "${{ matrix.hub_key }}"
+            --hub-key "${HUB_KEY}"
 
       - name: Upload summary
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: summary-pr-${{ matrix.pr_number }}-${{ matrix.hub_key }}
           path: submission_summary_${{ matrix.hub_key }}.json

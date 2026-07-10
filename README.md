@@ -1,74 +1,66 @@
 # Tour de France Skore Challenge
 
-Predict the **next stage finishing rank** of every rider still in the Tour de France.
-Each evening, CI refreshes the dataset from [letour.fr](https://www.letour.fr/en/rankings),
-scores **open PRs** that were opened or updated that calendar day (Europe/Paris), and
-publishes reports to [Skore Hub](https://skore.probabl.ai/).
+Predict the **next-stage finishing rank** of every rider still in the race.
+Each evening with a new stage result, open submission PRs are scored and published
+to [Skore Hub](https://skore.probabl.ai/).
 
-## How it works
+**Leave your PR open** to continue participating.
 
-1. **During the day** — develop against `data/next_stage.csv` (no labels) and open a PR with
-   your code under `submissions/<github-login>/`. **Do not merge** — leave the PR open.
-2. **Nightly fetch** — `scripts/fetch_tdf_data.py` updates `data/data.csv` through the stage
-   that just finished and writes the next blind `next_stage.csv`.
-3. **Nightly score** — only open PRs **created or last updated on that stage’s calendar day**
-   (Paris) are checked out and evaluated; reports go to Hub project `{day}_juillet`
-   (e.g. `8_juillet` for 8 July).
+## What you predict
 
-```text
-evening cron
-  → fetch letour.fr → update data.csv / next_stage.csv / test.csv
-  → discover open PRs touched today (Paris)
-  → for each PR: overlay submissions/ → skore check → evaluate → Hub put
+| | |
+| --- | --- |
+| Target | `stage_rank` — finishing position on the **next** stage (`1` = winner) |
+| Metric | **Spearman ρ** (primary; higher is better), MAE secondary |
+| Train on | `data/data.csv` — labeled history through the latest completed stage |
+| Predict for | `data/next_stage.csv` — next stage features, **no** `stage_rank` |
+
+If `data.csv` includes **9 July**, you are predicting **10 July**.
+
+## Mandatory: Probabl skore
+
+Submissions **must** use the [skore](https://docs.skore.probabl.ai/) library
+(Probabl). CI rejects any `submission.py` that does not import / use skore.
+
+## Recommended: Probabl skills
+
+Install the [probabl-ai/skills](https://github.com/probabl-ai/skills) pack so your
+agent follows good ML methodology with skore:
+
+```bash
+pip install skore-cli && skore skills install
+# or
+npx skills add probabl-ai/skills
 ```
 
-### `data.csv` vs prediction day
-
-`data.csv` **is** the training set (there is no separate `train.csv`).
-
-If `data.csv` includes **9 July**, the prediction target is **10 July** (`next_stage.csv`).
-
-See [`data/README.md`](data/README.md).
-
-## Predict
-
-| Field | Meaning |
-| --- | --- |
-| Target | `stage_rank` — finishing position on the **next** stage (1 = winner) |
-| Task | Regression (rank as a continuous target so skore reports work out of the box) |
-| Rows | One row per rider still in the race for that stage |
+Useful: `explore-ml-data`, `build-ml-pipeline`, `evaluate-ml-pipeline`,
+`iterate-ml-experiment`.
 
 ## Submit
 
-1. Copy the skeleton:
+1. Branch from `main` and copy the skeleton:
 
    ```bash
    cp -r submissions/_skeleton submissions/<your-github-login>
    ```
 
-2. Implement `build_estimator()` in `submissions/<login>/submission.py` (must use **skore**).
-3. Open a PR **the same calendar day** as the stage you are predicting (Europe/Paris).
-   [`validate-pr.yml`](.github/workflows/validate-pr.yml) checks the contract (no Hub publish).
-4. Leave the PR open. That evening, if your PR was opened/updated that day, CI scores it
-   and publishes to Hub project `{day}_juillet`.
+   Use your GitHub username as the folder name (Hub report key).
 
-Details: [`CONTRIBUTING.md`](CONTRIBUTING.md).
+2. Implement `build_estimator()` in `submissions/<login>/submission.py`:
 
-## Recommended: Probabl skills
+   ```python
+   def build_estimator():
+       """Return an unfitted sklearn-compatible estimator or Pipeline."""
+       ...
+   ```
 
-Use the [probabl-ai/skills](https://github.com/probabl-ai/skills) pack so your agent follows
-good ML methodology with skore:
+   - Must expose `fit` / `predict`
+   - Must use **skore** (see above)
+   - Optional `requirements.txt` for extra packages
 
-```bash
-# via skore-cli
-pip install skore-cli && skore skills install
-
-# or
-npx skills add probabl-ai/skills
-```
-
-Useful skills: `explore-ml-data`, `build-ml-pipeline`, `evaluate-ml-pipeline`,
-`iterate-ml-experiment`.
+3. Open a PR and **leave it open**. Every evening with new stage data, CI retrains
+   your estimator on the updated `data.csv` and publishes to Hub project
+   `{day}_juillet` (e.g. `9_juillet`).
 
 ## Local setup
 
@@ -76,41 +68,36 @@ Useful skills: `explore-ml-data`, `build-ml-pipeline`, `evaluate-ml-pipeline`,
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
+
+# Fail if submission.py does not use skore
+python scripts/check_skore_usage.py submissions/<login>
+# Dry-run: hold out the latest stage in data.csv (no test.csv during the day)
+python scripts/run_submission.py submissions/<login> --allow-holdout
 ```
 
-Fetch / refresh data:
+## Data columns
 
-```bash
-python scripts/fetch_tdf_data.py                 # history year + current season
-python scripts/fetch_tdf_data.py --skip-history  # letour.fr only (faster)
-```
-
-Dry-run a submission:
-
-```bash
-python scripts/check_skore_usage.py submissions/_skeleton
-python scripts/run_submission.py submissions/_skeleton --allow-holdout
-```
-
-## Repo secrets (maintainers)
-
-| Secret | Purpose |
+| Column | Description |
 | --- | --- |
-| `SKORE_API_KEY` | Mapped to `SKORE_HUB_API_KEY` for `skore.login(mode="hub")` |
-| `DATA_PUSH_DEPLOY_KEY` | Write deploy key (private key) listed as a **bypass actor** on `main-protect`, so nightly fetch can push `data/` |
-
-Hub workspace: `tour-de-france-challenge`. Projects are named `{day}_juillet` (e.g. `9_juillet`).
-
-Optional: `TDF_YEAR` repository variable to override the Tour season year.
-
-## Layout
-
-```text
-data/                 # data.csv + next_stage.csv (+ ephemeral test.csv)
-scripts/              # fetch, PR discovery, skore gate, evaluation harness
-submissions/          # skeleton (+ PR branches carry participant folders)
-.github/workflows/    # nightly fetch+score, PR validation, manual backfill
-```
+| `year` | Tour season year |
+| `stage_number` | Stage number (1–21) |
+| `stage_date` | Stage date (`YYYY-MM-DD`) |
+| `rider_id` | Stable rider slug |
+| `rider_name` | Display name |
+| `team` | Team name |
+| `bib` | Race number |
+| `age` | Rider age when available |
+| `stage_type` | `flat` / `hilly` / `mountain` / `itt` / `ttt` |
+| `distance_km` | Stage distance (km) |
+| `stage_name` | Stage title |
+| `prior_stages_ridden` | Prior stages finished this Tour |
+| `avg_prior_stage_rank` | Mean of prior stage ranks |
+| `best_prior_stage_rank` | Best (min) prior stage rank |
+| `last_stage_rank` | Rank on the previous stage |
+| `gc_rank_before` | GC rank entering the stage |
+| `gc_time_gap_before_s` | GC time gap to leader before the stage (seconds) |
+| `days_since_start` | Days since race start |
+| `stage_rank` | **Target** (null in `next_stage.csv`) |
 
 ## License
 

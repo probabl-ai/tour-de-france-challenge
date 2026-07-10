@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Discover open PRs eligible for tonight's scoring.
+"""Discover open submission PRs for nightly scoring.
 
-A PR is eligible when it is open and was created or last updated on the scoring
-stage's calendar day (Europe/Paris). Submissions are not merged to main; the
-nightly job checks out each PR head and evaluates it.
+Every open PR that touches ``submissions/<login>/`` (non-skeleton) is eligible.
+Models are retrained each CI run, so PRs stay open and are re-scored whenever
+there is a new stage to evaluate.
 """
 
 from __future__ import annotations
@@ -11,25 +11,31 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-PARIS = ZoneInfo("Europe/Paris")
+# Folder / hub keys must be safe for shell paths and artifact names.
+_SAFE_NAME = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
-def _gh_json(args: list[str]) -> object:
+def is_safe_submission_name(name: str) -> bool:
+    return bool(name) and bool(_SAFE_NAME.match(name))
+
+
+def _gh_json(args: list[str]) -> object | None:
     cmd = ["gh", *args]
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        err = (exc.stderr or exc.stdout or str(exc)).strip()
+        print(f"error: gh {' '.join(args)} failed: {err}", file=sys.stderr)
+        return None
+    except FileNotFoundError:
+        print("error: gh CLI not found on PATH", file=sys.stderr)
+        return None
     return json.loads(result.stdout) if result.stdout.strip() else None
-
-
-def _paris_day(iso_ts: str) -> str:
-    # gh returns timestamps like 2026-07-08T15:26:26Z
-    dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00")).astimezone(PARIS)
-    return dt.date().isoformat()
 
 
 def _submission_dirs_from_files(files: list[str]) -> list[str]:
@@ -37,12 +43,16 @@ def _submission_dirs_from_files(files: list[str]) -> list[str]:
     for path in files:
         parts = Path(path).parts
         if len(parts) >= 2 and parts[0] == "submissions" and not parts[1].startswith("_"):
-            found.add(parts[1])
+            name = parts[1]
+            if is_safe_submission_name(name):
+                found.add(name)
+            else:
+                print(f"skip unsafe submission folder name: {name!r}", file=sys.stderr)
     return sorted(found)
 
 
-def discover(score_day: str) -> list[dict]:
-    """Return matrix rows for open PRs touched on ``score_day`` (YYYY-MM-DD Paris)."""
+def discover() -> list[dict]:
+    """Return matrix rows for all open PRs with a submission folder."""
     prs = _gh_json(
         [
             "pr",
@@ -52,7 +62,7 @@ def discover(score_day: str) -> list[dict]:
             "--limit",
             "100",
             "--json",
-            "number,title,author,createdAt,updatedAt,headRefOid,headRepository,url",
+            "number,title,author,headRefOid,headRepository,url",
         ]
     )
     if not isinstance(prs, list):
@@ -60,11 +70,6 @@ def discover(score_day: str) -> list[dict]:
 
     rows: list[dict] = []
     for pr in prs:
-        created_day = _paris_day(pr["createdAt"])
-        updated_day = _paris_day(pr["updatedAt"])
-        if score_day not in {created_day, updated_day}:
-            continue
-
         number = pr["number"]
         raw = subprocess.run(
             ["gh", "pr", "diff", str(number), "--name-only"],
@@ -83,12 +88,20 @@ def discover(score_day: str) -> list[dict]:
             continue
 
         author = (pr.get("author") or {}).get("login") or "unknown"
-        # Prefer folder matching author; else first submission dir in the PR
-        submission = author if author in subs else subs[0]
+        if author in subs:
+            submission = author
+        else:
+            submission = subs[0]
+        if not is_safe_submission_name(submission):
+            print(
+                f"skip PR #{number}: unsafe submission name {submission!r}",
+                file=sys.stderr,
+            )
+            continue
+
         head_repo = None
         head = pr.get("headRepository") or {}
         if isinstance(head, dict) and head.get("name"):
-            # owner/name — gh json may only have name; fall back to pr view
             owner = head.get("owner")
             if isinstance(owner, dict):
                 head_repo = f"{owner.get('login')}/{head.get('name')}"
@@ -115,13 +128,10 @@ def discover(score_day: str) -> list[dict]:
                 "head_sha": pr.get("headRefOid"),
                 "head_repo": head_repo or "",
                 "url": pr.get("url") or "",
-                "created_day": created_day,
-                "updated_day": updated_day,
             }
         )
         print(
-            f"eligible PR #{number} ({author}) submission={submission} "
-            f"created={created_day} updated={updated_day}",
+            f"eligible PR #{number} ({author}) submission={submission}",
             file=sys.stderr,
         )
 
@@ -131,38 +141,18 @@ def discover(score_day: str) -> list[dict]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--score-day",
-        default=None,
-        help="Calendar day in Europe/Paris (YYYY-MM-DD). Default: score_stage_date from meta.",
-    )
-    parser.add_argument(
-        "--meta",
-        type=Path,
-        default=Path("data/latest_score_meta.json"),
-        help="Path to latest_score_meta.json",
-    )
-    parser.add_argument(
         "--github-output",
         action="store_true",
         help="Also write matrix=... to $GITHUB_OUTPUT",
     )
+    # Kept for backward compatibility with older workflow inputs; ignored.
+    parser.add_argument("--score-day", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--meta", type=Path, default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    score_day = args.score_day
-    if not score_day and args.meta.exists():
-        info = json.loads(args.meta.read_text())
-        score_day = info.get("score_stage_date")
-    if not score_day:
-        # Fall back to today in Paris
-        score_day = datetime.now(tz=PARIS).date().isoformat()
-
-    # Normalize date-only
-    score_day = str(score_day)[:10]
-    print(f"discovering open PRs for score day {score_day} (Europe/Paris)", file=sys.stderr)
-
-    rows = discover(score_day)
+    print("discovering all open submission PRs", file=sys.stderr)
+    rows = discover()
     matrix = {"include": rows} if rows else {"include": []}
-    # Compact JSON so GHA if-conditions can match '{"include":[]}' reliably
     text = json.dumps(matrix, separators=(",", ":"))
     print(text)
     Path("matrix.json").write_text(text + "\n")
@@ -173,7 +163,6 @@ def main() -> int:
             with open(out, "a", encoding="utf-8") as fh:
                 fh.write(f"matrix={text}\n")
                 fh.write(f"has_prs={'true' if rows else 'false'}\n")
-                fh.write(f"score_day={score_day}\n")
                 fh.write(f"n_prs={len(rows)}\n")
     return 0
 

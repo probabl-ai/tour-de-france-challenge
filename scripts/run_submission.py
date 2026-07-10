@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
+SUBMISSIONS_ROOT = ROOT / "submissions"
 
 DROP_COLUMNS = {
     "stage_rank",
@@ -86,15 +88,32 @@ def build_report(
     X_test: pd.DataFrame,
     y_test: pd.Series,
 ):
+    from scipy.stats import spearmanr
+    from sklearn.metrics import make_scorer
     from skore import EstimatorReport
 
-    return EstimatorReport(
+    report = EstimatorReport(
         estimator,
         X_train=X_train,
         y_train=y_train,
         X_test=X_test,
         y_test=y_test,
     )
+
+    def spearman_rank(y_true, y_pred) -> float:
+        """Spearman ρ between true and predicted stage ranks (higher is better)."""
+        coef = spearmanr(y_true, y_pred).statistic
+        if coef is None or (isinstance(coef, float) and math.isnan(coef)):
+            return 0.0
+        return float(coef)
+
+    report.metrics.add(
+        make_scorer(spearman_rank, response_method="predict"),
+        name="Spearman Rank",
+        greater_is_better=True,
+        position="first",
+    )
+    return report
 
 
 def publish_report(report: Any, key: str, workspace: str, project: str) -> None:
@@ -126,6 +145,12 @@ def main() -> int:
     )
     args = parser.parse_args()
     submission_dir = args.submission.resolve()
+    if not submission_dir.is_relative_to(SUBMISSIONS_ROOT.resolve()):
+        print(
+            f"error: submission path must be under {SUBMISSIONS_ROOT}",
+            file=sys.stderr,
+        )
+        return 1
     key = args.hub_key or submission_dir.name
 
     module = _load_module(submission_dir)
@@ -197,6 +222,13 @@ def main() -> int:
         "published": bool(publish),
     }
     summary_path = Path(os.environ.get("SUBMISSION_SUMMARY", "submission_summary.json"))
+    if summary_path.is_absolute() or ".." in summary_path.parts:
+        print(
+            f"warning: ignoring unsafe SUBMISSION_SUMMARY={summary_path}; "
+            "using submission_summary.json",
+            file=sys.stderr,
+        )
+        summary_path = Path("submission_summary.json")
     summary_path.write_text(json.dumps(out, indent=2) + "\n")
     return 0
 
