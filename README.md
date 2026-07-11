@@ -98,7 +98,3 @@ python scripts/run_submission.py submissions/<login> --allow-holdout
 | `gc_time_gap_before_s` | GC time gap to leader before the stage (seconds) |
 | `days_since_start` | Days since race start |
 | `stage_rank` | **Target** (null in `next_stage.csv`) |
-
-## License
-
-MIT

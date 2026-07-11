@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Daily Tour de France stage-rank prediction challenge powered by skore"
 readme = "README.md"
 requires-python = ">=3.14"
-license = "MIT"
 dependencies = [
     "pandas>=2.2",
     "numpy>=1.26",
