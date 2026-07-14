@@ -22,6 +22,12 @@ climb-manifold history). Pooled history contaminates flat predictions with
 climbing form. Missing history (a year's first same-context stage) maps to the
 field average via the within-stage normal-score transform.
 
+On itt rows the history covariate is blinded (set to missing): its slope is
+unidentifiable with one ITT stage in the data and it starves the LKJ
+itt-imputation channel that 2026 stage 16 relies on. ITT prediction routes
+through the imputed u_itt and theta_itt; itt results still feed the climb
+history consumed by later hilly/mountain stages.
+
 Self-contained on purpose: the nightly scoring workflow overlays only the
 submissions/ folder from the PR onto main, so no code outside this directory
 can be imported.
@@ -112,6 +118,11 @@ def same_context_prior_mean(z: pd.Series, X: pd.DataFrame) -> pd.Series:
         lambda s: s.expanding().mean().shift(1)
     )
     return prior.reindex(X.index)
+
+
+def itt_blind(prior_mean: pd.Series, X: pd.DataFrame) -> pd.Series:
+    """Blank the history covariate on itt rows (missing → field average)."""
+    return prior_mean.mask(X[STAGE_TYPE_COL] == "itt")
 
 
 def model(
@@ -253,7 +264,9 @@ class RankitEstimator(BaseEstimator, RegressorMixin):
             }
         ).dropna(subset=["ctx"])
 
-        X_train = X_train.assign(same_context_prior_mean=same_context_prior_mean(z, X_train))
+        X_train = X_train.assign(
+            same_context_prior_mean=itt_blind(same_context_prior_mean(z, X_train), X_train)
+        )
         (
             covariates,
             type_idx,
@@ -296,7 +309,7 @@ class RankitEstimator(BaseEstimator, RegressorMixin):
         return self
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
-        X = X.assign(same_context_prior_mean=self._history_prior_mean(X))
+        X = X.assign(same_context_prior_mean=itt_blind(self._history_prior_mean(X), X))
         covariates, type_idx, rider_idx, team_idx, gate_idx, is_2025, _, _, _ = self._design(
             X, self.rider_index_, self.type_index_, self.team_index_
         )
