@@ -10,6 +10,13 @@ drawn from MVN(0, diag(sigma_u) Omega diag(sigma_u)) with an LKJ(2) correlation
 prior — a rider's ITT aptitude is imputed through their hilly/mountain aptitude
 via Omega, since 2026 has no ITT before stage 16.
 
+The pooled avg_prior_stage_rank covariate is replaced by the same-context prior
+mean: the rider's mean prior within-stage outcome normal score restricted to
+same-context stages (flat stages use flat history; hilly/mountain/itt share the
+climb-manifold history). Pooled history contaminates flat predictions with
+climbing form. Missing history (a year's first same-context stage) maps to the
+field average via the within-stage normal-score transform.
+
 Self-contained on purpose: the nightly scoring workflow overlays only the
 submissions/ folder from the PR onto main, so no code outside this directory
 can be imported.
@@ -29,9 +36,12 @@ from scipy.stats import norm, rankdata
 from sklearn.base import BaseEstimator, RegressorMixin
 
 STAGE_KEY = ["year", "stage_number"]
-COVARIATES = ["gc_rank_before", "avg_prior_stage_rank", "last_stage_rank"]
+COVARIATES = ["gc_rank_before", "same_context_prior_mean", "last_stage_rank"]
 STAGE_TYPE_COL = "stage_type"
 NUM_CHAINS = 4
+
+# flat history informs flat stages only; hilly/mountain/itt share the climb manifold.
+CONTEXT = {"flat": "flat", "hilly": "climb", "mountain": "climb", "itt": "climb"}
 
 numpyro.set_host_device_count(NUM_CHAINS)
 
@@ -55,7 +65,8 @@ def normal_score(values: pd.Series) -> pd.Series:
 
 
 def covariate_scores(X: pd.DataFrame) -> pd.DataFrame:
-    """Group X by STAGE_KEY, apply normal_score to each of COVARIATES."""
+    """Within-stage normal scores of COVARIATES. X must already carry the raw
+    same_context_prior_mean column."""
     grouped = X.groupby(STAGE_KEY, sort=False)
     scored = {col: grouped[col].transform(normal_score) for col in COVARIATES}
     return pd.DataFrame(scored, index=X.index)[COVARIATES]
@@ -75,6 +86,24 @@ def training_mask(X: pd.DataFrame) -> pd.Series:
     """
     excluded = (X["year"] == 2026) & (X["stage_number"] == 1)
     return ~excluded
+
+
+def same_context_prior_mean(z: pd.Series, X: pd.DataFrame) -> pd.Series:
+    """Per row: mean of the rider's outcome normal scores over strictly earlier
+    same-context stages of the same year. NaN where no such history exists."""
+    d = pd.DataFrame(
+        {
+            "year": X["year"],
+            "bib": X["bib"],
+            "ctx": X[STAGE_TYPE_COL].map(CONTEXT),
+            "stage": X["stage_number"],
+            "z": z,
+        }
+    ).sort_values("stage", kind="stable")
+    prior = d.groupby(["year", "bib", "ctx"])["z"].transform(
+        lambda s: s.expanding().mean().shift(1)
+    )
+    return prior.reindex(X.index)
 
 
 def model(covariates, type_idx, rider_idx, is_2025, num_types, num_riders, obs=None):
@@ -107,6 +136,10 @@ def model(covariates, type_idx, rider_idx, is_2025, num_types, num_riders, obs=N
 class RankitEstimator(BaseEstimator, RegressorMixin):
     """Rankit mixed model: type-specific beta, rider-by-terrain aptitude, type dispersion.
 
+    The same-context history covariate is built leakage-free at fit time (expanding
+    mean over strictly earlier same-context stages); the history is stored so
+    predict-time rows draw the same quantity from training data.
+
     Predictions are float expected within-stage ranks (monotone with finishing
     rank). Ranks are computed within each posterior draw and averaged over draws
     (Shen & Louis 1998; never rank posterior-mean mu).
@@ -118,6 +151,7 @@ class RankitEstimator(BaseEstimator, RegressorMixin):
         self.num_samples = num_samples
 
     def _design(self, X: pd.DataFrame, rider_index=None, type_index=None):
+        """X must already carry the raw same_context_prior_mean column."""
         covariates = covariate_scores(X)[COVARIATES].to_numpy(dtype="float32")
 
         riders = list(zip(X["year"], X["bib"]))
@@ -132,16 +166,43 @@ class RankitEstimator(BaseEstimator, RegressorMixin):
         is_2025 = (X["year"] == 2025).to_numpy(dtype="float32")
         return covariates, type_idx, rider_idx, is_2025, rider_index, type_index
 
+    def _history_prior_mean(self, X: pd.DataFrame) -> pd.Series:
+        """Predict-time covariate: mean stored z over same-context training stages
+        strictly before each row's stage. NaN where no history."""
+        key = pd.DataFrame(
+            {
+                "year": X["year"],
+                "bib": X["bib"],
+                "ctx": X[STAGE_TYPE_COL].map(CONTEXT),
+                "stage": X["stage_number"],
+                "row": X.index,
+            }
+        )
+        merged = key.merge(self.history_, on=["year", "bib", "ctx"], how="left")
+        merged = merged[merged["hist_stage"] < merged["stage"]]
+        return merged.groupby("row")["z"].mean().reindex(X.index)
+
     def fit(self, X: pd.DataFrame, y: pd.Series):
         mask = training_mask(X)
         X_train = X.loc[mask]
         y_train = (y.loc[mask] if hasattr(y, "loc") else pd.Series(y, index=X.index).loc[mask])
 
+        z = outcome_score(y_train, X_train)
+        self.history_ = pd.DataFrame(
+            {
+                "year": X_train["year"],
+                "bib": X_train["bib"],
+                "ctx": X_train[STAGE_TYPE_COL].map(CONTEXT),
+                "hist_stage": X_train["stage_number"],
+                "z": z,
+            }
+        ).dropna(subset=["ctx"])
+
+        X_train = X_train.assign(same_context_prior_mean=same_context_prior_mean(z, X_train))
         covariates, type_idx, rider_idx, is_2025, rider_index, type_index = self._design(X_train)
         self.rider_index_ = rider_index
         self.type_index_ = type_index
 
-        z = outcome_score(y_train, X_train).to_numpy(dtype="float32")
         args = (
             jnp.asarray(covariates),
             jnp.asarray(type_idx),
@@ -159,11 +220,12 @@ class RankitEstimator(BaseEstimator, RegressorMixin):
             num_chains=NUM_CHAINS,
             progress_bar=False,
         )
-        mcmc.run(key, *args, obs=jnp.asarray(z))
+        mcmc.run(key, *args, obs=jnp.asarray(z.to_numpy(dtype="float32")))
         self.posterior_samples_ = mcmc.get_samples()
         return self
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
+        X = X.assign(same_context_prior_mean=self._history_prior_mean(X))
         covariates, type_idx, rider_idx, is_2025, _, _ = self._design(
             X, self.rider_index_, self.type_index_
         )
