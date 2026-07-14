@@ -1,0 +1,213 @@
+"""Hierarchical Bayesian latent-score ("rankit") model in NumPyro.
+
+Within-stage ranks are mapped to normal scores z_is = Phi^-1((rank - 0.5) / n_s)
+and modeled as z_is ~ StudentT(nu, mu_is, sigma_is) with
+mu_is = sum_k beta[k, type] * x_kis + u[rider, type] and
+log sigma_is = tau[type] + kappa * 1[year == 2025].
+
+Rider aptitude u is a per-rider 4-vector over stage types (flat/hilly/mountain/itt)
+drawn from MVN(0, diag(sigma_u) Omega diag(sigma_u)) with an LKJ(2) correlation
+prior — a rider's ITT aptitude is imputed through their hilly/mountain aptitude
+via Omega, since 2026 has no ITT before stage 16.
+
+Self-contained on purpose: the nightly scoring workflow overlays only the
+submissions/ folder from the PR onto main, so no code outside this directory
+can be imported.
+"""
+
+from __future__ import annotations
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+import numpyro
+import numpyro.distributions as dist
+import pandas as pd
+import skore  # noqa: F401  (required by CI static check)
+from numpyro.infer import MCMC, NUTS
+from scipy.stats import norm, rankdata
+from sklearn.base import BaseEstimator, RegressorMixin
+
+STAGE_KEY = ["year", "stage_number"]
+COVARIATES = ["gc_rank_before", "avg_prior_stage_rank", "last_stage_rank"]
+STAGE_TYPE_COL = "stage_type"
+NUM_CHAINS = 4
+
+numpyro.set_host_device_count(NUM_CHAINS)
+
+
+def normal_score(values: pd.Series) -> pd.Series:
+    """Within one stage: rank values (average ties), z = norm.ppf((rank - 0.5) / n_valid).
+
+    NaN maps to 0.0 (field average) and is excluded from n_valid and from the
+    ranking of the other values.
+    """
+    valid = values.notna()
+    n_valid = int(valid.sum())
+
+    scores = pd.Series(0.0, index=values.index)
+    if n_valid == 0:
+        return scores
+
+    ranks = rankdata(values[valid])
+    scores[valid] = norm.ppf((ranks - 0.5) / n_valid)
+    return scores
+
+
+def covariate_scores(X: pd.DataFrame) -> pd.DataFrame:
+    """Group X by STAGE_KEY, apply normal_score to each of COVARIATES."""
+    grouped = X.groupby(STAGE_KEY, sort=False)
+    scored = {col: grouped[col].transform(normal_score) for col in COVARIATES}
+    return pd.DataFrame(scored, index=X.index)[COVARIATES]
+
+
+def outcome_score(y: pd.Series, X: pd.DataFrame) -> pd.Series:
+    """z_is = norm.ppf((rank_within_stage(y) - 0.5) / n_s) grouped by X[STAGE_KEY]."""
+    stage_id = X[STAGE_KEY].apply(tuple, axis=1)
+    return y.groupby(stage_id).transform(normal_score)
+
+
+def training_mask(X: pd.DataFrame) -> pd.Series:
+    """True for usable rows.
+
+    Excludes (year == 2026) & (stage_number == 1) — a TTT with fabricated
+    individual ranks, not a real within-stage ordering.
+    """
+    excluded = (X["year"] == 2026) & (X["stage_number"] == 1)
+    return ~excluded
+
+
+def model(covariates, type_idx, rider_idx, is_2025, num_types, num_riders, obs=None):
+    """Rankit likelihood. covariates: (n, 3); indices: (n,); is_2025: (n,) float."""
+    nu = numpyro.sample("nu", dist.Gamma(2.0, 0.1))
+    # Normal(0, 0.5) regularizes the correlated prior-rank covariates.
+    beta = numpyro.sample("beta", dist.Normal(0.0, 0.5).expand([len(COVARIATES), num_types]))
+    sigma_u = numpyro.sample("sigma_u", dist.HalfNormal(0.5).expand([num_types]))
+    # LKJ(2) mildly concentrates toward 0 but supports the observed positive
+    # manifold of terrain aptitudes (hilly-mountain corr ~0.8).
+    L_omega = numpyro.sample("L_omega", dist.LKJCholesky(num_types, concentration=2.0))
+    # flat stages are near-lotteries, mountain deterministic; kappa (2025 noise
+    # inflation) is weakly supported, keep near-zero-centered.
+    tau = numpyro.sample("tau", dist.Normal(jnp.log(0.7), 0.5).expand([num_types]))
+    kappa = numpyro.sample("kappa", dist.Normal(0.0, 0.3))
+
+    scale_tril = sigma_u[:, None] * L_omega
+    with numpyro.plate("riders", num_riders):
+        z_u = numpyro.sample("z_u", dist.Normal(0.0, 1.0).expand([num_types]).to_event(1))
+    u = numpyro.deterministic("u", z_u @ scale_tril.T)  # (num_riders, num_types)
+
+    beta_is = beta[:, type_idx].T  # (n, 3)
+    mu = jnp.sum(beta_is * covariates, axis=-1) + u[rider_idx, type_idx]
+    sigma = jnp.exp(tau[type_idx] + kappa * is_2025)
+
+    with numpyro.plate("obs", covariates.shape[0]):
+        numpyro.sample("z", dist.StudentT(nu, mu, sigma), obs=obs)
+
+
+class RankitEstimator(BaseEstimator, RegressorMixin):
+    """Rankit mixed model: type-specific beta, rider-by-terrain aptitude, type dispersion.
+
+    Predictions are float expected within-stage ranks (monotone with finishing
+    rank). Ranks are computed within each posterior draw and averaged over draws
+    (Shen & Louis 1998; never rank posterior-mean mu).
+    """
+
+    def __init__(self, seed: int = 0, num_warmup: int = 1500, num_samples: int = 1000):
+        self.seed = seed
+        self.num_warmup = num_warmup
+        self.num_samples = num_samples
+
+    def _design(self, X: pd.DataFrame, rider_index=None, type_index=None):
+        covariates = covariate_scores(X)[COVARIATES].to_numpy(dtype="float32")
+
+        riders = list(zip(X["year"], X["bib"]))
+        if rider_index is None:
+            rider_index = {r: i for i, r in enumerate(dict.fromkeys(riders))}
+        rider_idx = np.array([rider_index.get(r, -1) for r in riders])
+
+        if type_index is None:
+            type_index = {t: i for i, t in enumerate(sorted(X[STAGE_TYPE_COL].unique()))}
+        type_idx = np.array([type_index.get(t, -1) for t in X[STAGE_TYPE_COL]])
+
+        is_2025 = (X["year"] == 2025).to_numpy(dtype="float32")
+        return covariates, type_idx, rider_idx, is_2025, rider_index, type_index
+
+    def fit(self, X: pd.DataFrame, y: pd.Series):
+        mask = training_mask(X)
+        X_train = X.loc[mask]
+        y_train = (y.loc[mask] if hasattr(y, "loc") else pd.Series(y, index=X.index).loc[mask])
+
+        covariates, type_idx, rider_idx, is_2025, rider_index, type_index = self._design(X_train)
+        self.rider_index_ = rider_index
+        self.type_index_ = type_index
+
+        z = outcome_score(y_train, X_train).to_numpy(dtype="float32")
+        args = (
+            jnp.asarray(covariates),
+            jnp.asarray(type_idx),
+            jnp.asarray(rider_idx),
+            jnp.asarray(is_2025),
+            len(type_index),
+            len(rider_index),
+        )
+        key = jax.random.PRNGKey(self.seed)
+
+        mcmc = MCMC(
+            NUTS(model, target_accept_prob=0.9),  # MVN+LKJ geometry needs the headroom
+            num_warmup=self.num_warmup,
+            num_samples=self.num_samples,
+            num_chains=NUM_CHAINS,
+            progress_bar=False,
+        )
+        mcmc.run(key, *args, obs=jnp.asarray(z))
+        self.posterior_samples_ = mcmc.get_samples()
+        return self
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        covariates, type_idx, rider_idx, is_2025, _, _ = self._design(
+            X, self.rider_index_, self.type_index_
+        )
+        beta = np.asarray(self.posterior_samples_["beta"])  # (m, 3, types)
+        u = np.asarray(self.posterior_samples_["u"])  # (m, num_riders, types)
+        sigma_u = np.asarray(self.posterior_samples_["sigma_u"])  # (m, types)
+        L_omega = np.asarray(self.posterior_samples_["L_omega"])  # (m, types, types)
+        num_draws = beta.shape[0]
+
+        beta_mean_type = beta.mean(axis=2)  # (m, 3), fallback for unseen types
+        seen_type = type_idx >= 0
+        safe_type = np.where(seen_type, type_idx, 0)
+        beta_is = beta[:, :, safe_type]  # (m, 3, n)
+        beta_is = np.where(seen_type, beta_is, beta_mean_type[:, :, None])
+
+        cov = covariates.T[None, :, :]  # (1, 3, n)
+        mu = np.sum(beta_is * cov, axis=1)  # (m, n)
+
+        seen_rider = rider_idx >= 0
+        safe_rider = np.where(seen_rider, rider_idx, 0)
+        u_seen = u[:, safe_rider, safe_type]  # (m, n), aptitude for this stage's terrain
+        u_seen_avg = u[:, safe_rider, :].mean(axis=2)  # (m, n), avg over types, unseen-type fallback
+        u_seen = np.where(seen_type, u_seen, u_seen_avg)
+
+        scale_tril = sigma_u[:, :, None] * L_omega  # (m, types, types)
+        rng = np.random.default_rng(self.seed)
+        eps = rng.standard_normal((num_draws, seen_rider.size, sigma_u.shape[1]))  # (m, n, types)
+        u_unseen_full = np.einsum("mij,mnj->mni", scale_tril, eps)  # (m, n, types)
+        u_unseen_type = np.take_along_axis(
+            u_unseen_full, safe_type[None, :, None], axis=2
+        )[:, :, 0]  # (m, n)
+        u_unseen = np.where(seen_type, u_unseen_type, u_unseen_full.mean(axis=2))
+        u_is = np.where(seen_rider, u_seen, u_unseen)
+        mu = mu + u_is
+
+        expected_rank = np.empty(len(X), dtype=float)
+        stage_id = list(zip(X["year"], X["stage_number"]))
+        for stage in dict.fromkeys(stage_id):
+            cols = np.array([s == stage for s in stage_id])
+            ranks = rankdata(mu[:, cols], axis=1)  # rank within draw within stage
+            expected_rank[cols] = ranks.mean(axis=0)
+        return expected_rank
+
+
+def build_estimator():
+    """Return an unfitted sklearn-compatible estimator."""
+    return RankitEstimator()
