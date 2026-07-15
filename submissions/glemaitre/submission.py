@@ -17,7 +17,8 @@ is a DataOps step (a pandas merge inside ``apply_func``), not a
     Xm = Xm.skb.apply_func(join_rider_history)     # DataOps join on (year, bib)
     Xm = Xm.skb.apply_func(add_stage_affinity)     # career specialty x stage-type
     Xm = Xm.skb.apply_func(add_race_dynamics)      # in-Tour GC/form x stage-type
-    pred = Xm.skb.apply(tabular_pipeline(HGBR), y=y)
+    Xm = Xm.skb.apply_func(drop_id_columns)        # grouping keys are not features
+    pred = Xm.skb.apply(make_pipeline(DropConstantColumns(), TabICLRegressor()), y=y)
     learner = pred.skb.make_learner()
 
 Why the graph is rooted on ``skrub.var("X")`` / ``skrub.var("y")``: the challenge
@@ -47,12 +48,14 @@ Feature layers:
    standing predicts finishing order with opposite sign on flat (sprinters, deep
    on GC, win) vs mountain (GC leaders win summit finishes); a non-threatening GC
    position buys freedom to escape on transition stages; cracking on one mountain
-   day tends to repeat the next. (A learned latent race-state -- PCA + KMeans
-   archetype over the same situation columns -- was tested and did not help this
-   tree model, so the knowledge is encoded as explicit features.)
-5. ``tabular_pipeline(HistGradientBoostingRegressor(...))`` -- encodes the
-   categoricals and passes native missing values to a shallow, well-regularised
-   tree learner (the dataset is small, ~4.7k rows, so capacity overfits).
+   day tends to repeat the next.
+5. ``drop_id_columns`` + ``DropConstantColumns`` + ``TabICLRegressor`` -- the
+   learner is TabICLv2, a pretrained tabular foundation model (in-context
+   learning). It does its own categorical encoding / imputation / scaling, so we
+   only drop grouping keys and guard against its feature-mask bug on per-fold
+   constant columns. It beat a tuned HistGradientBoostingRegressor on the same
+   features with no tuning (walk-forward rho 0.58 vs 0.57; stage-11 flat 0.61 vs
+   0.52). The checkpoint auto-downloads from Hugging Face on first fit.
 
 Harness bridge: a skrub ``SkrubLearner`` fits from an environment dict, and
 skore's ``EstimatorReport`` rejects the harness's ``X_train`` / ``y_train`` call
@@ -66,9 +69,10 @@ is one stage; training uses only chronologically earlier stages) evaluated with
 skore ``skore.evaluate(learner, data={"X": X, "y": y}, splitter=...)``.
 Walk-forward Spearman rho:
 
-    form features only          0.43   (flat 0.30, mountain 0.59)
-    + rider history + affinity  0.57   (flat 0.43, mountain 0.74)
-    + in-Tour race dynamics     0.57   (flat 0.45, mountain 0.76)  <- shipped
+    form features only              0.43   (flat 0.30, mountain 0.59)
+    + rider history + affinity      0.57   (flat 0.43, mountain 0.74)
+    + in-Tour race dynamics (HGBR)  0.57   (flat 0.46, mountain 0.75)
+    + TabICL learner (same feats)   0.58   (flat 0.48, mountain 0.76)  <- shipped
 
 Leakage note: the temporally-honest history fields (pre-Tour points, previous
 season) use only seasons before each Tour. The specialty fractions are a career
@@ -88,9 +92,9 @@ import numpy as np
 import pandas as pd
 import skore  # noqa: F401  - required: CI aborts submissions that do not use skore
 import skrub
-from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.ensemble import HistGradientBoostingRegressor
-from skrub import tabular_pipeline
+from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
+from sklearn.pipeline import make_pipeline
+from tabicl import TabICLRegressor
 
 HERE = Path(__file__).resolve().parent
 RIDER_HISTORY = pd.read_csv(HERE / "rider_history.csv")
@@ -102,6 +106,9 @@ STAGE_AFFINITY = {
     "itt": "spec_time_trial_frac",
     "ttt": "spec_time_trial_frac",
 }
+# Id-like columns: grouping keys, not predictors. Dropped before TabICL (their
+# constancy within early folds otherwise trips TabICL's feature filter).
+ID_COLUMNS = ["year", "stage_number", "bib"]
 
 
 def add_form_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -205,8 +212,65 @@ def add_race_dynamics(df: pd.DataFrame) -> pd.DataFrame:
     return df.replace([np.inf, -np.inf], np.nan)
 
 
+def drop_id_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop grouping-key columns before the learner.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Feature frame.
+
+    Returns
+    -------
+    pandas.DataFrame
+        ``df`` without ``year`` / ``stage_number`` / ``bib``.
+    """
+    return df.drop(columns=[c for c in ID_COLUMNS if c in df.columns])
+
+
+class DropConstantColumns(BaseEstimator, TransformerMixin):
+    """Keep only columns with more than one distinct non-null training value.
+
+    Guards against TabICL's internal feature filter dropping constant columns
+    and then mismatching its feature mask between fit and predict.
+    """
+
+    def fit(self, X, y=None):
+        """Record the non-constant columns seen at fit time.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame
+            Feature frame.
+        y : ignored
+            Present for scikit-learn API compatibility.
+
+        Returns
+        -------
+        DropConstantColumns
+            The fitted transformer.
+        """
+        self.keep_ = [c for c in X.columns if X[c].nunique(dropna=True) > 1]
+        return self
+
+    def transform(self, X):
+        """Select the columns recorded at fit time.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame
+            Feature frame.
+
+        Returns
+        -------
+        pandas.DataFrame
+            ``X`` restricted to the retained columns.
+        """
+        return X[self.keep_]
+
+
 def build_learner():
-    """Build the skrub DataOps learner (join + features + model).
+    """Build the skrub DataOps learner (join + features + TabICL model).
 
     Returns
     -------
@@ -221,17 +285,9 @@ def build_learner():
     features = features.skb.apply_func(join_rider_history)
     features = features.skb.apply_func(add_stage_affinity)
     features = features.skb.apply_func(add_race_dynamics)
+    features = features.skb.apply_func(drop_id_columns)
     predictions = features.skb.apply(
-        tabular_pipeline(
-            HistGradientBoostingRegressor(
-                max_depth=3,
-                max_iter=300,
-                learning_rate=0.03,
-                min_samples_leaf=30,
-                l2_regularization=1.0,
-                random_state=0,
-            )
-        ),
+        make_pipeline(DropConstantColumns(), TabICLRegressor(random_state=0)),
         y=y,
     )
     return predictions.skb.make_learner()

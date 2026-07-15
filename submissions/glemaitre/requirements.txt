@@ -1,2 +1,3 @@
-# Optional extra dependencies for this submission.
-# Challenge baseline already provides: skore[hub], scikit-learn, pandas, skrub, numpy.
+# TabICLv2 tabular foundation model (pulls torch). The pretrained checkpoint is
+# downloaded from Hugging Face on first fit.
+tabicl>=2.1
