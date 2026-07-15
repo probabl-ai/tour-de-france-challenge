@@ -348,9 +348,11 @@ def build_estimator():
 
 if __name__ == "__main__":
     # Local methodology check: DataOps-native evaluation via env-dict + skore,
-    # walk-forward-by-stage CV scored with Spearman rho.
-    from scipy.stats import spearmanr
-    from sklearn.metrics import make_scorer
+    # walk-forward-by-stage CV scored with ranking-aware metrics. Spearman rho
+    # (the challenge metric) and Kendall tau measure whole-field ordering; NDCG@10
+    # is top-weighted, so it isolates how well we get the FRONT of the race right.
+    from scipy.stats import kendalltau, spearmanr
+    from sklearn.metrics import make_scorer, ndcg_score
 
     DROP = ["stage_rank", "rider_id", "rider_name", "stage_name", "stage_date"]
     TARGET = "stage_rank"
@@ -383,6 +385,22 @@ if __name__ == "__main__":
         coef = spearmanr(y_true, y_pred).statistic
         return 0.0 if coef is None or np.isnan(coef) else float(coef)
 
+    def _kendall(y_true, y_pred) -> float:
+        """Kendall tau: fraction of correctly ordered rider pairs (concordance)."""
+        coef = kendalltau(y_true, y_pred).statistic
+        return 0.0 if coef is None or np.isnan(coef) else float(coef)
+
+    def _ndcg_at_10(y_true, y_pred, k: int = 10) -> float:
+        """Top-weighted ordering: are the riders we rank highest the ones who
+        actually finish near the front? Relevance decreases with true rank (true
+        top-k get positive gain); predicted score is -predicted_rank."""
+        y_true = np.asarray(y_true, dtype=float)
+        y_pred = np.asarray(y_pred, dtype=float)
+        if len(y_true) < 2:
+            return 0.0
+        relevance = np.maximum(0.0, (k + 1) - y_true)
+        return float(ndcg_score(relevance[None, :], (-y_pred)[None, :], k=k))
+
     data = pd.read_csv("data/data.csv").dropna(subset=[TARGET])
     y = data[TARGET].astype(float)
     X = data.drop(columns=[c for c in DROP if c in data.columns])
@@ -392,9 +410,14 @@ if __name__ == "__main__":
         data={"X": X, "y": y},
         splitter=WalkForwardByStage(min_train_stages=6),
     )
-    report.metrics.add(
-        make_scorer(_spearman, response_method="predict"),
-        name="Spearman",
-        greater_is_better=True,
-    )
+    for scorer, metric_name in (
+        (_spearman, "Spearman"),
+        (_kendall, "Kendall tau"),
+        (_ndcg_at_10, "NDCG@10"),
+    ):
+        report.metrics.add(
+            make_scorer(scorer, response_method="predict"),
+            name=metric_name,
+            greater_is_better=True,
+        )
     print(report.metrics.summarize().frame())
