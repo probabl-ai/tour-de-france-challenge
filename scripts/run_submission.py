@@ -81,24 +81,20 @@ def _holdout_latest_stage(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFram
     return train, test
 
 
-def build_report(
-    estimator: Any,
-    X_train: pd.DataFrame,
-    y_train: pd.Series,
-    X_test: pd.DataFrame,
-    y_test: pd.Series,
-):
+def build_report(estimator: Any, **report_kwargs: Any):
+    """Build an EstimatorReport with the challenge Spearman Rank metric.
+
+    Forwards ``report_kwargs`` to ``EstimatorReport``. Supported data styles
+    (keyword-only, mutually exclusive):
+
+    - sklearn-style: ``X_train=``, ``y_train=``, ``X_test=``, ``y_test=``
+    - env-dict-style: ``train_data={...}``, ``test_data={...}`` (SkrubLearner)
+    """
     from scipy.stats import spearmanr
     from sklearn.metrics import make_scorer
     from skore import EstimatorReport
 
-    report = EstimatorReport(
-        estimator,
-        X_train=X_train,
-        y_train=y_train,
-        X_test=X_test,
-        y_test=y_test,
-    )
+    report = EstimatorReport(estimator, **report_kwargs)
 
     def spearman_rank(y_true, y_pred) -> float:
         """Spearman ρ between true and predicted stage ranks (higher is better)."""
@@ -196,7 +192,13 @@ def main() -> int:
 
     X_test = X_test.reindex(columns=X_train.columns)
 
-    report = build_report(estimator, X_train, y_train, X_test, y_test)
+    report = build_report(
+        estimator,
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        y_test=y_test,
+    )
     metrics = report.metrics.summarize().frame()
     print(metrics.to_string())
 
