@@ -15,7 +15,8 @@ is a DataOps step (a pandas merge inside ``apply_func``), not a
     Xm = X.skb.mark_as_X()
     Xm = Xm.skb.apply_func(add_form_features)      # stateless per-row signals
     Xm = Xm.skb.apply_func(join_rider_history)     # DataOps join on (year, bib)
-    Xm = Xm.skb.apply_func(add_stage_affinity)     # specialty x stage-type
+    Xm = Xm.skb.apply_func(add_stage_affinity)     # career specialty x stage-type
+    Xm = Xm.skb.apply_func(add_race_dynamics)      # in-Tour GC/form x stage-type
     pred = Xm.skb.apply(tabular_pipeline(HGBR), y=y)
     learner = pred.skb.make_learner()
 
@@ -38,10 +39,18 @@ Feature layers:
    points: sprint / climber / gc / tt / hills / one-day), career quality
    (pre-Tour points, previous-season points and rank) and physiology
    (age / weight / height / BMI).
-3. ``add_stage_affinity`` -- the rider's specialty fraction *matching today's
-   stage type*, orthogonal to the form features (which average a rider's results
-   over ALL stage types and so make a pure sprinter look mediocre on a flat day).
-4. ``tabular_pipeline(HistGradientBoostingRegressor(...))`` -- encodes the
+3. ``add_stage_affinity`` -- the rider's *career* specialty fraction matching
+   today's stage type, orthogonal to the form features (which average a rider's
+   results over ALL stage types and so make a pure sprinter look mediocre on a
+   flat day).
+4. ``add_race_dynamics`` -- *in-Tour* interactions that change every day: GC
+   standing predicts finishing order with opposite sign on flat (sprinters, deep
+   on GC, win) vs mountain (GC leaders win summit finishes); a non-threatening GC
+   position buys freedom to escape on transition stages; cracking on one mountain
+   day tends to repeat the next. (A learned latent race-state -- PCA + KMeans
+   archetype over the same situation columns -- was tested and did not help this
+   tree model, so the knowledge is encoded as explicit features.)
+5. ``tabular_pipeline(HistGradientBoostingRegressor(...))`` -- encodes the
    categoricals and passes native missing values to a shallow, well-regularised
    tree learner (the dataset is small, ~4.7k rows, so capacity overfits).
 
@@ -57,8 +66,9 @@ is one stage; training uses only chronologically earlier stages) evaluated with
 skore ``skore.evaluate(learner, data={"X": X, "y": y}, splitter=...)``.
 Walk-forward Spearman rho:
 
-    form features only         0.43   (flat 0.30, mountain 0.59)
-    + rider history + affinity 0.57   (flat 0.43, mountain 0.75)  <- shipped
+    form features only          0.43   (flat 0.30, mountain 0.59)
+    + rider history + affinity  0.57   (flat 0.43, mountain 0.74)
+    + in-Tour race dynamics     0.57   (flat 0.45, mountain 0.76)  <- shipped
 
 Leakage note: the temporally-honest history fields (pre-Tour points, previous
 season) use only seasons before each Tour. The specialty fractions are a career
@@ -159,6 +169,42 @@ def add_stage_affinity(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def add_race_dynamics(df: pd.DataFrame) -> pd.DataFrame:
+    """Add explicit race-dynamics interactions from in-Tour GC and form.
+
+    Encodes three effects grounded in the data: (1) GC standing predicts finish
+    order with opposite sign on flat (sprinters, low on GC, win) vs mountain (GC
+    leaders win summit finishes); (2) a non-threatening GC position gives a rider
+    freedom to escape on transition stages; (3) cracking on a mountain stage
+    tends to repeat the next mountain day (fatigue carry-over).
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Frame with ``stage_type`` and the in-Tour GC / form columns.
+
+    Returns
+    -------
+    pandas.DataFrame
+        ``df`` with the interaction columns; infinities set to NaN.
+    """
+    df = df.copy()
+    stage_type = df["stage_type"].astype(str)
+    flat = (stage_type == "flat").astype(float)
+    hilly = (stage_type == "hilly").astype(float)
+    mountain = (stage_type == "mountain").astype(float)
+    gc_rank = df["gc_rank_before"]
+    gc_gap = df["gc_time_gap_before_s"]
+    momentum = df["last_stage_rank"] - df["avg_prior_stage_rank"]
+    df["gc_rank_flat"] = gc_rank * flat
+    df["gc_rank_mountain"] = gc_rank * mountain
+    df["gc_gap_mountain"] = gc_gap * mountain
+    df["escape_freedom"] = gc_rank * (flat + hilly)
+    df["marked_leader_transition"] = (gc_rank <= 10).astype(float) * (flat + hilly)
+    df["mountain_fatigue"] = momentum * mountain
+    return df.replace([np.inf, -np.inf], np.nan)
+
+
 def build_learner():
     """Build the skrub DataOps learner (join + features + model).
 
@@ -174,6 +220,7 @@ def build_learner():
     features = features.skb.apply_func(add_form_features)
     features = features.skb.apply_func(join_rider_history)
     features = features.skb.apply_func(add_stage_affinity)
+    features = features.skb.apply_func(add_race_dynamics)
     predictions = features.skb.apply(
         tabular_pipeline(
             HistGradientBoostingRegressor(
