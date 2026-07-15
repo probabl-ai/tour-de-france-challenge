@@ -8,35 +8,49 @@ Spearman rho (rank correlation within a stage); MAE is secondary.
 Approach
 --------
 The harness fits the returned estimator with the plain ``fit(X, y)`` signature,
-so the submission must be a scikit-learn-compatible estimator. We use a skrub
-``tabular_pipeline`` because the feature matrix mixes high-cardinality
-categoricals (``team``, ``stage_type``) with numerics that are heavily missing
-(``gc_time_gap_before_s`` ~66% null, ``age`` ~38%, ``gc_rank_before`` ~18%);
-``tabular_pipeline`` handles categorical encoding and native missing values with
-no manual ``ColumnTransformer`` wiring.
+so the submission is a scikit-learn-compatible ``Pipeline`` whose data-combining
+and modelling steps are **skrub** objects:
 
-Ahead of the model we add a stateless ``FunctionTransformer`` that derives a few
-per-row form/GC signals from columns the harness already provides (the harness
-drops ``rider_id``, so no per-rider rolling windows are possible). The strongest
-is a **sprinter signal**: a rider who finishes stages well
-(``best_prior_stage_rank`` low) yet sits poorly on GC (``gc_rank_before`` high)
-is a sprinter -- exactly who wins the *flat* stages this dataset's next stage
-tends to be. These features lift walk-forward Spearman rho on flat stages from
-~0.26 to ~0.30 while leaving hilly / mountain stages unchanged.
+1. ``FunctionTransformer(add_form_features)`` -- stateless per-row form/GC signals
+   derived from columns the harness provides (it drops ``rider_id``, so no
+   per-rider rolling windows). The key one is a **sprinter signal**: a rider who
+   finishes stages well (``best_prior_stage_rank`` low) yet sits poorly on GC
+   (``gc_rank_before`` high) is a sprinter -- who wins flat stages.
+2. ``skrub.Joiner`` -- an exact join (``max_dist=0``) on ``(year, bib)`` that
+   brings in ``rider_history.csv``, a static ProCyclingStats-derived table
+   (shipped alongside this file). The harness drops ``rider_id`` but keeps
+   ``year`` and ``bib``, which map 1:1 to a rider, so identity is recoverable.
+   History adds rider *type* (specialty points: sprint / climber / gc / tt /
+   hills / one-day), career quality (pre-Tour points, previous-season points and
+   rank) and physiology (age / weight / height / BMI).
+3. ``FunctionTransformer(finalize_features)`` -- tidies the join and builds a
+   ``stage_affinity`` feature: the rider's career specialty fraction *matching
+   today's stage type*. This is orthogonal to the form features, which average a
+   rider's results over ALL stage types and therefore make a pure sprinter look
+   mediocre even on a flat day.
+4. ``skrub.tabular_pipeline(HistGradientBoostingRegressor(...))`` -- encodes the
+   categoricals (``team``, ``stage_type``, ``dominant_specialty``) and passes
+   native missing values to a deliberately shallow, well-regularised tree
+   learner (the dataset is small, ~4.7k rows, so capacity overfits).
 
-The estimator is a deliberately shallow, well-regularised
-``HistGradientBoostingRegressor``. The dataset is small (~4.7k rows, roughly one
-and a half Tours), so higher-capacity models overfit and *lose* held-out rank
-correlation. Choices were made with a **walk-forward-by-stage** cross-validation
-(each test fold is a single stage; training uses only chronologically earlier
-stages, so there is no future leakage) scored with skore
-``CrossValidationReport``. Walk-forward Spearman rho:
+Note: a skrub DataOps ``make_learner()`` is intentionally NOT used -- it fits
+from an environment dict and skore's ``EstimatorReport`` rejects the harness's
+``X_train`` / ``y_train`` call for a ``SkrubLearner``. Using skrub *transformers*
+inside an sklearn ``Pipeline`` keeps the same skrub semantics while staying
+harness-compatible.
 
-    dummy (mean)             0.00
-    Ridge                    0.40 +/- 0.25
-    HGBR (default)           0.38 +/- 0.21
-    HGBR regularised         0.42 +/- 0.21
-    HGBR regularised + FE    0.43 +/- 0.21   <- shipped; best overall and on flat
+Model selection used a **walk-forward-by-stage** cross-validation (each test fold
+is one stage; training uses only chronologically earlier stages) scored with
+skore ``CrossValidationReport``. Walk-forward Spearman rho:
+
+    form features only        0.43   (flat 0.30, mountain 0.59)
+    + rider history + affinity 0.57  (flat 0.43, mountain 0.75)  <- shipped
+
+Leakage note: the temporally-honest history fields (pre-Tour points, previous
+season) are computed strictly from seasons before each Tour. The specialty
+fractions are a career snapshot, so the 2025 backtest folds are mildly
+optimistic; for the live task the artifact is built from data up to the latest
+completed stage, so predicting the *next* stage uses only past information.
 
 Run ``python submissions/glemaitre/submission.py`` to reproduce the skore
 walk-forward report.
@@ -44,15 +58,30 @@ walk-forward report.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import skore  # noqa: F401  - required: CI aborts submissions that do not use skore
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import FunctionTransformer
-from skrub import tabular_pipeline
+from skrub import Joiner, tabular_pipeline
+
+HERE = Path(__file__).resolve().parent
+RIDER_HISTORY_PATH = HERE / "rider_history.csv"
+JOIN_SUFFIX = "__hist"
+# Which career specialty fraction matches each stage type.
+STAGE_AFFINITY = {
+    "flat": "spec_sprint_frac",
+    "hilly": "spec_hills_frac",
+    "mountain": "spec_climber_frac",
+    "itt": "spec_time_trial_frac",
+    "ttt": "spec_time_trial_frac",
+}
 
 
-def add_form_features(df):
+def add_form_features(df: pd.DataFrame) -> pd.DataFrame:
     """Add stateless per-row form/GC signals derived from existing columns.
 
     Parameters
@@ -63,24 +92,53 @@ def add_form_features(df):
     Returns
     -------
     pandas.DataFrame
-        Copy of ``df`` with the derived signal columns appended and any
-        infinities produced by ratios replaced with missing values.
+        Copy of ``df`` with derived signals; infinities from ratios set to NaN.
     """
     df = df.copy()
     gc = df["gc_rank_before"]
     best = df["best_prior_stage_rank"]
     avg = df["avg_prior_stage_rank"]
     last = df["last_stage_rank"]
-    # Sprinter signal: finishes stages well but poorly placed on GC -> flat win.
     df["sprinter_signal"] = gc - best
-    # Consistency: gap between typical and best result this Tour.
     df["form_gap"] = avg - best
-    # Momentum: last result relative to the season average (negative = rising).
     df["momentum"] = last - avg
-    # Stage finishing ability relative to GC standing (sprinter ratios).
     df["best_over_gc"] = best / (gc + 1.0)
     df["avg_over_gc"] = avg / (gc + 1.0)
     return df.replace([np.inf, -np.inf], np.nan)
+
+
+def finalize_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Tidy the ``skrub.Joiner`` output and add the stage-affinity feature.
+
+    The Joiner suffixes every auxiliary column; we drop the duplicated key
+    columns, strip the suffix from the real features, then build
+    ``stage_affinity`` -- the rider's specialty fraction matching today's stage.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Output of the rider-history join.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Frame with clean history columns and the ``stage_affinity`` feature.
+    """
+    df = df.copy()
+    for key in ("year", "bib", "stage_number"):
+        col = f"{key}{JOIN_SUFFIX}"
+        if col in df.columns:
+            df = df.drop(columns=col)
+    df = df.rename(
+        columns={c: c[: -len(JOIN_SUFFIX)] for c in df.columns if c.endswith(JOIN_SUFFIX)}
+    )
+    stage_type = df["stage_type"].astype(str)
+    affinity = pd.Series(np.nan, index=df.index, dtype=float)
+    for stype, col in STAGE_AFFINITY.items():
+        if col in df.columns:
+            affinity = affinity.mask(stage_type == stype, df[col])
+    df["stage_affinity"] = affinity
+    return df
 
 
 def build_estimator():
@@ -89,13 +147,21 @@ def build_estimator():
     Returns
     -------
     estimator : sklearn.pipeline.Pipeline
-        A stateless feature-engineering step feeding a shallow, regularised
-        gradient-boosted regressor wrapped in a skrub ``tabular_pipeline`` that
-        encodes categoricals and passes native missing values to the tree
-        learner.
+        Form features -> skrub rider-history join -> stage affinity -> skrub
+        ``tabular_pipeline`` around a shallow, regularised gradient booster.
     """
+    rider_history = pd.read_csv(RIDER_HISTORY_PATH)
     return make_pipeline(
         FunctionTransformer(add_form_features, validate=False),
+        Joiner(
+            rider_history,
+            main_key=["year", "bib"],
+            aux_key=["year", "bib"],
+            max_dist=0,
+            suffix=JOIN_SUFFIX,
+            add_match_info=False,
+        ),
+        FunctionTransformer(finalize_features, validate=False),
         tabular_pipeline(
             HistGradientBoostingRegressor(
                 max_depth=3,
@@ -112,8 +178,6 @@ def build_estimator():
 if __name__ == "__main__":
     # Local methodology check with skore: walk-forward-by-stage CV scored with
     # Spearman rho (mirrors how CI scores a newly completed stage).
-    import numpy as np
-    import pandas as pd
     from scipy.stats import spearmanr
     from sklearn.metrics import make_scorer
 
