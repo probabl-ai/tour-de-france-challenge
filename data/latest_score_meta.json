@@ -1,15 +1,15 @@
 {
-  "n_data": 4902,
+  "n_data": 5076,
   "n_next": 174,
-  "latest_stage_number": 11,
-  "latest_stage_date": "2026-07-15",
+  "latest_stage_number": 12,
+  "latest_stage_date": "2026-07-16",
   "latest_year": 2026,
-  "next_stage_number": 12,
-  "next_stage_date": "2026-07-16",
-  "score_stage_number": 11,
-  "score_stage_date": "2026-07-15",
+  "next_stage_number": 13,
+  "next_stage_date": "2026-07-17",
+  "score_stage_number": 12,
+  "score_stage_date": "2026-07-16",
   "n_score": 174,
   "has_new_stage": true,
-  "commit_day": 15,
-  "skore_project": "15_juillet"
+  "commit_day": 16,
+  "skore_project": "16_juillet"
 }
