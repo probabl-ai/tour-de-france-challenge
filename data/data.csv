@@ -5581,3 +5581,167 @@ year,stage_number,stage_date,rider_id,rider_name,team,bib,age,stage_type,distanc
 2026,15,2026-07-19,lewis-askey,L. ASKEY,NSN CYCLING TEAM,132,,mountain,183.9,Champagnole > Plateau de Solaison,14,135.57142857142858,66.0,162.0,167.0,14033.0,15,164.0
 2026,15,2026-07-19,pascal-eenkhoorn,P. EENKHOORN,SOUDAL QUICK-STEP,92,,mountain,183.9,Champagnole > Plateau de Solaison,14,132.71428571428572,23.0,142.0,148.0,12963.0,15,165.0
 2026,15,2026-07-19,soeren-waerenskjold,S. WAERENSKJOLD,UNO-X MOBILITY,128,,mountain,183.9,Champagnole > Plateau de Solaison,14,99.42857142857143,1.0,149.0,138.0,12527.0,15,166.0
+2026,16,2026-07-21,remco-evenepoel,R. EVENEPOEL,RED BULL - BORA - HANSGROHE,21,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,19.933333333333334,1.0,1.0,2.0,300.0,17,1.0
+2026,16,2026-07-21,tadej-pogacar,T. POGACAR,UAE TEAM EMIRATES XRG,1,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,21.133333333333333,1.0,2.0,1.0,0.0,17,2.0
+2026,16,2026-07-21,mattias-skjelmose,M. SKJELMOSE,LIDL-TREK,35,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,29.533333333333335,5.0,7.0,7.0,578.0,17,3.0
+2026,16,2026-07-21,paul-seixas,P. SEIXAS,DECATHLON CMA CGM TEAM,51,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,23.266666666666666,3.0,4.0,4.0,383.0,17,4.0
+2026,16,2026-07-21,isaac-del-toro-romero,I. DEL TORO,UAE TEAM EMIRATES XRG,2,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,24.0,1.0,3.0,3.0,358.0,17,5.0
+2026,16,2026-07-21,mattia-cattaneo,M. CATTANEO,RED BULL - BORA - HANSGROHE,22,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,70.73333333333333,30.0,30.0,48.0,7958.0,17,6.0
+2026,16,2026-07-21,thymen-arensman,T. ARENSMAN,NETCOMPANY INEOS CYCLING TEAM,82,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,62.6,19.0,68.0,29.0,5797.0,17,7.0
+2026,16,2026-07-21,bruno-armirail,B. ARMIRAIL,TEAM VISMA | LEASE A BIKE,13,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,86.66666666666667,42.0,52.0,82.0,11272.0,17,8.0
+2026,16,2026-07-21,pablo-castrillo-zapater,P. CASTRILLO,MOVISTAR TEAM,142,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,68.0,9.0,84.0,28.0,5643.0,17,9.0
+2026,16,2026-07-21,joshua-michael-tarling,J. TARLING,NETCOMPANY INEOS CYCLING TEAM,87,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,125.4,39.0,122.0,149.0,15079.0,17,10.0
+2026,16,2026-07-21,filippo-ganna,F. GANNA,NETCOMPANY INEOS CYCLING TEAM,84,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,116.6,2.0,131.0,127.0,13967.0,17,11.0
+2026,16,2026-07-21,tom-pidcock,T. PIDCOCK,PINARELLO-Q36.5 PRO CYCLING TEAM,171,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,21.466666666666665,3.0,13.0,9.0,679.0,17,12.0
+2026,16,2026-07-21,felix-grossschartner,F. GROSSSCHARTNER,UAE TEAM EMIRATES XRG,3,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,67.73333333333333,31.0,31.0,33.0,6628.0,17,13.0
+2026,16,2026-07-21,matteo-jorgenson,M. JORGENSON,TEAM VISMA | LEASE A BIKE,16,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,66.0,33.0,40.0,32.0,6265.0,17,14.0
+2026,16,2026-07-21,juan-ayuso-pesquera,J. AYUSO,LIDL-TREK,31,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,28.733333333333334,4.0,8.0,6.0,448.0,17,15.0
+2026,16,2026-07-21,huub-artz,H. ARTZ,LOTTO INTERMARCHE,152,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,95.73333333333333,4.0,160.0,144.0,14891.0,17,16.0
+2026,16,2026-07-21,daan-hoole,D. HOOLE,DECATHLON CMA CGM TEAM,54,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,124.13333333333334,39.0,149.0,137.0,14527.0,17,17.0
+2026,16,2026-07-21,thibault-guernalec,T. GUERNALEC,TOTALENERGIES,205,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,108.6,48.0,150.0,116.0,13448.0,17,18.0
+2026,16,2026-07-21,ewen-costiou,E. COSTIOU,GROUPAMA-FDJ UNITED,184,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,100.6,17.0,17.0,69.0,10159.0,17,19.0
+2026,16,2026-07-21,lenny-martinez,L. MARTINEZ,BAHRAIN VICTORIOUS,71,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,44.4,6.0,6.0,8.0,628.0,17,20.0
+2026,16,2026-07-21,aurelien-paret-peintre,A. PARET PEINTRE,DECATHLON CMA CGM TEAM,56,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,72.13333333333334,21.0,28.0,55.0,8627.0,17,21.0
+2026,16,2026-07-21,brandon-mcnulty,B. MCNULTY,UAE TEAM EMIRATES XRG,4,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,36.53333333333333,5.0,32.0,19.0,3031.0,17,22.0
+2026,16,2026-07-21,yannis-voisard,Y. VOISARD,TUDOR PRO CYCLING TEAM,198,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,36.666666666666664,11.0,11.0,11.0,1304.0,17,23.0
+2026,16,2026-07-21,mauro-schmid,M. SCHMID,TEAM JAYCO ALULA,118,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,73.46666666666667,1.0,21.0,49.0,8041.0,17,24.0
+2026,16,2026-07-21,davide-piganzoli,D. PIGANZOLI,TEAM VISMA | LEASE A BIKE,18,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,38.53333333333333,7.0,18.0,15.0,1482.0,17,25.0
+2026,16,2026-07-21,ilan-van-wilder,I. VAN WILDER,SOUDAL QUICK-STEP,97,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,36.333333333333336,12.0,19.0,13.0,1329.0,17,26.0
+2026,16,2026-07-21,derek-james-gee,D. GEE,LIDL-TREK,32,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,61.46666666666667,15.0,71.0,30.0,5912.0,17,27.0
+2026,16,2026-07-21,jakub-otruba,J. OTRUBA,CAJA RURAL-SEGUROS RGA,227,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,134.06666666666666,77.0,77.0,124.0,13848.0,17,28.0
+2026,16,2026-07-21,nelson-oliveira,N. OLIVEIRA,MOVISTAR TEAM,146,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,83.53333333333333,34.0,72.0,76.0,10976.0,17,29.0
+2026,16,2026-07-21,matthew-riccitello,M. RICCITELLO,DECATHLON CMA CGM TEAM,58,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,72.33333333333333,14.0,20.0,38.0,7119.0,17,30.0
+2026,16,2026-07-21,abel-balderstone-roumens,A. BALDERSTONE,CAJA RURAL-SEGUROS RGA,222,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,83.06666666666666,22.0,22.0,53.0,8387.0,17,31.0
+2026,16,2026-07-21,xabier-azparren-irurzun,X. AZPARREN IRURZUN,PINARELLO-Q36.5 PRO CYCLING TEAM,172,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,116.46666666666667,76.0,83.0,115.0,13210.0,17,32.0
+2026,16,2026-07-21,benjamin-thomas,B. THOMAS,COFIDIS,168,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,130.2,29.0,152.0,113.0,13147.0,17,33.0
+2026,16,2026-07-21,maxim-van-gils,M. VAN GILS,RED BULL - BORA - HANSGROHE,28,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,53.2,4.0,25.0,34.0,6830.0,17,34.0
+2026,16,2026-07-21,clement-braz-afonso,C. BRAZ AFONSO,GROUPAMA-FDJ UNITED,183,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,75.13333333333334,8.0,73.0,54.0,8489.0,17,35.0
+2026,16,2026-07-21,jordan-jegat,J. JEGAT,TOTALENERGIES,201,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,36.2,7.0,14.0,10.0,1166.0,17,36.0
+2026,16,2026-07-21,raul-garcia-pierna,R. GARCIA,MOVISTAR TEAM,144,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,65.8,3.0,34.0,40.0,7172.0,17,37.0
+2026,16,2026-07-21,romain-gregoire,R. GREGOIRE,GROUPAMA-FDJ UNITED,181,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,69.13333333333334,7.0,80.0,59.0,9115.0,17,38.0
+2026,16,2026-07-21,sean-quinn,S. QUINN,EF EDUCATION - EASYPOST,45,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,44.93333333333333,7.0,46.0,20.0,3796.0,17,39.0
+2026,16,2026-07-21,felix-engelhardt,F. ENGELHARDT,TEAM JAYCO ALULA,114,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,102.6,60.0,98.0,101.0,12457.0,17,40.0
+2026,16,2026-07-21,richard-carapaz,R. CARAPAZ,EF EDUCATION - EASYPOST,41,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,45.86666666666667,3.0,12.0,12.0,1328.0,17,41.0
+2026,16,2026-07-21,tobias-svendsen-foss,T. FOSS,NETCOMPANY INEOS CYCLING TEAM,83,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,76.53333333333333,9.0,39.0,42.0,7511.0,17,42.0
+2026,16,2026-07-21,damiano-caruso,D. CARUSO,BAHRAIN VICTORIOUS,73,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,78.13333333333334,42.0,61.0,66.0,9865.0,17,43.0
+2026,16,2026-07-21,damien-craig-howson,D. HOWSON,PINARELLO-Q36.5 PRO CYCLING TEAM,175,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,105.53333333333333,72.0,100.0,98.0,12217.0,17,44.0
+2026,16,2026-07-21,clement-russo,C. RUSSO,GROUPAMA-FDJ UNITED,188,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,59.0,8.0,56.0,80.0,11243.0,17,45.0
+2026,16,2026-07-21,michal-kwiatkowski,M. KWIATKOWSKI,NETCOMPANY INEOS CYCLING TEAM,86,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,107.33333333333333,30.0,130.0,128.0,13972.0,17,46.0
+2026,16,2026-07-21,quinn-simmons,Q. SIMMONS,LIDL-TREK,34,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,68.6,2.0,10.0,25.0,5010.0,17,47.0
+2026,16,2026-07-21,simone-velasco,S. VELASCO,XDS ASTANA TEAM,67,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,127.53333333333333,62.0,62.0,112.0,13053.0,17,48.0
+2026,16,2026-07-21,alexandre-delettre,A. DELETTRE,TOTALENERGIES,204,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,72.0,12.0,48.0,65.0,9833.0,17,49.0
+2026,16,2026-07-21,egan-bernal-gomez,E. BERNAL,NETCOMPANY INEOS CYCLING TEAM,81,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,49.8,11.0,69.0,16.0,2461.0,17,50.0
+2026,16,2026-07-21,quentin-pacher,Q. PACHER,GROUPAMA-FDJ UNITED,187,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,75.8,20.0,57.0,68.0,10122.0,17,51.0
+2026,16,2026-07-21,xandro-meurisse,X. MEURISSE,PINARELLO-Q36.5 PRO CYCLING TEAM,176,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,66.2,29.0,53.0,56.0,8926.0,17,52.0
+2026,16,2026-07-21,dylan-van-baarle,D. VAN BAARLE,SOUDAL QUICK-STEP,95,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,126.53333333333333,47.0,85.0,136.0,14487.0,17,53.0
+2026,16,2026-07-21,tim-wellens,T. WELLENS,UAE TEAM EMIRATES XRG,7,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,74.0,9.0,50.0,52.0,8289.0,17,54.0
+2026,16,2026-07-21,nicolas-prodhomme,N. PRODHOMME,DECATHLON CMA CGM TEAM,57,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,54.4,22.0,27.0,21.0,3807.0,17,55.0
+2026,16,2026-07-21,guillaume-martin-guyonnet,G. MARTIN GUYONNET,GROUPAMA-FDJ UNITED,186,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,65.06666666666666,23.0,23.0,36.0,6967.0,17,56.0
+2026,16,2026-07-21,mathis-le-berre,M. LE BERRE,TOTALENERGIES,206,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,93.86666666666666,48.0,67.0,89.0,11560.0,17,57.0
+2026,16,2026-07-21,ben-alexander-o-connor,B. O'CONNOR,TEAM JAYCO ALULA,111,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,83.33333333333333,19.0,65.0,41.0,7375.0,17,58.0
+2026,16,2026-07-21,michael-valgren,M. VALGREN,EF EDUCATION - EASYPOST,47,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,96.73333333333333,12.0,47.0,60.0,9355.0,17,59.0
+2026,16,2026-07-21,nils-politt,N. POLITT,UAE TEAM EMIRATES XRG,5,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,78.33333333333333,40.0,49.0,79.0,11213.0,17,60.0
+2026,16,2026-07-21,joel-nicolau-beltran,J. NICOLAU,CAJA RURAL-SEGUROS RGA,225,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,134.8,19.0,158.0,135.0,14449.0,17,61.0
+2026,16,2026-07-21,antonio-tiberi,A. TIBERI,BAHRAIN VICTORIOUS,77,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,56.333333333333336,13.0,15.0,35.0,6866.0,17,62.0
+2026,16,2026-07-21,nicolas-breuillard,N. BREUILLARD,TOTALENERGIES,202,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,103.53333333333333,8.0,138.0,57.0,8984.0,17,63.0
+2026,16,2026-07-21,valentin-paret-peintre,V. PARET PEINTRE,SOUDAL QUICK-STEP,93,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,91.13333333333334,25.0,79.0,43.0,7527.0,17,64.0
+2026,16,2026-07-21,krists-neilands,K. NEILANDS,NSN CYCLING TEAM,136,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,124.8,82.0,143.0,138.0,14575.0,17,65.0
+2026,16,2026-07-21,kevin-vauquelin,K. VAUQUELIN,NETCOMPANY INEOS CYCLING TEAM,88,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,54.6,6.0,37.0,31.0,6197.0,17,66.0
+2026,16,2026-07-21,jonas-abrahamsen,J. ABRAHAMSEN,UNO-X MOBILITY,122,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,77.8,21.0,54.0,91.0,11572.0,17,67.0
+2026,16,2026-07-21,mathias-vacek,M. VACEK,LIDL-TREK,37,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,61.93333333333333,10.0,140.0,50.0,8075.0,17,68.0
+2026,16,2026-07-21,mads-pedersen,M. PEDERSEN,LIDL-TREK,33,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,76.46666666666667,1.0,141.0,90.0,11562.0,17,69.0
+2026,16,2026-07-21,jai-hindley,J. HINDLEY,RED BULL - BORA - HANSGROHE,24,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,58.86666666666667,23.0,26.0,23.0,4378.0,17,70.0
+2026,16,2026-07-21,michael-matthews,M. MATTHEWS,TEAM JAYCO ALULA,115,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,79.13333333333334,7.0,74.0,64.0,9778.0,17,71.0
+2026,16,2026-07-21,julian-alaphilippe,J. ALAPHILIPPE,TUDOR PRO CYCLING TEAM,191,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,116.8,30.0,111.0,133.0,14412.0,17,72.0
+2026,16,2026-07-21,rick-pluimers,R. PLUIMERS,TUDOR PRO CYCLING TEAM,195,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,61.2,6.0,90.0,78.0,11017.0,17,73.0
+2026,16,2026-07-21,alex-baudin,A. BAUDIN,EF EDUCATION - EASYPOST,43,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,77.26666666666667,4.0,35.0,45.0,7634.0,17,74.0
+2026,16,2026-07-21,quinten-hermans,Q. HERMANS,PINARELLO-Q36.5 PRO CYCLING TEAM,174,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,61.333333333333336,18.0,75.0,37.0,6994.0,17,75.0
+2026,16,2026-07-21,jose-felix-parra-cuerda,J. PARRA,CAJA RURAL-SEGUROS RGA,228,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,67.0,22.0,51.0,44.0,7581.0,17,76.0
+2026,16,2026-07-21,marco-frigo,M. FRIGO,NSN CYCLING TEAM,134,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,106.4,4.0,33.0,97.0,12149.0,17,77.0
+2026,16,2026-07-21,jasper-stuyven,J. STUYVEN,SOUDAL QUICK-STEP,94,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,77.6,14.0,92.0,77.0,11001.0,17,78.0
+2026,16,2026-07-21,milan-fretin,M. FRETIN,COFIDIS,165,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,100.8,4.0,117.0,157.0,15655.0,17,79.0
+2026,16,2026-07-21,georg-zimmermann,G. ZIMMERMANN,LOTTO INTERMARCHE,158,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,97.0,17.0,114.0,93.0,11732.0,17,80.0
+2026,16,2026-07-21,nicolya-vinokurov,N. VINOKUROV,XDS ASTANA TEAM,68,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,108.53333333333333,24.0,24.0,96.0,11925.0,17,81.0
+2026,16,2026-07-21,matteo-vercher,M. VERCHER,TOTALENERGIES,208,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,101.86666666666666,30.0,161.0,84.0,11429.0,17,82.0
+2026,16,2026-07-21,sergio-andres-higuita-garcia,S. HIGUITA,XDS ASTANA TEAM,61,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,81.8,15.0,64.0,47.0,7941.0,17,83.0
+2026,16,2026-07-21,einer-augusto-rubio-reyes,E. RUBIO,MOVISTAR TEAM,148,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,80.06666666666666,16.0,16.0,26.0,5529.0,17,84.0
+2026,16,2026-07-21,adam-yates,A. YATES,UAE TEAM EMIRATES XRG,8,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,45.86666666666667,9.0,9.0,14.0,1452.0,17,85.0
+2026,16,2026-07-21,lucas-plapp,L. PLAPP,TEAM JAYCO ALULA,117,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,112.66666666666667,10.0,147.0,85.0,11430.0,17,86.0
+2026,16,2026-07-21,dorian-godon,D. GODON,NETCOMPANY INEOS CYCLING TEAM,85,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,92.2,8.0,129.0,131.0,14316.0,17,87.0
+2026,16,2026-07-21,tiesj-benoot,T. BENOOT,DECATHLON CMA CGM TEAM,52,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,55.4,16.0,55.0,22.0,4227.0,17,88.0
+2026,16,2026-07-21,hugo-page,H. PAGE,COFIDIS,167,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,117.33333333333333,51.0,128.0,129.0,14072.0,17,89.0
+2026,16,2026-07-21,kasper-asgreen,K. ASGREEN,EF EDUCATION - EASYPOST,42,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,80.06666666666666,19.0,119.0,87.0,11525.0,17,90.0
+2026,16,2026-07-21,alex-kirsch,A. KIRSCH,COFIDIS,166,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,111.8,24.0,139.0,123.0,13819.0,17,91.0
+2026,16,2026-07-21,joris-delbove,J. DELBOVE,TOTALENERGIES,203,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,79.46666666666667,27.0,66.0,58.0,9055.0,17,92.0
+2026,16,2026-07-21,edward-planckaert,E. PLANCKAERT,ALPECIN-PREMIER TECH,106,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,111.33333333333333,28.0,116.0,118.0,13466.0,17,93.0
+2026,16,2026-07-21,jonas-rickaert,J. RICKAERT,ALPECIN-PREMIER TECH,107,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,110.46666666666667,33.0,97.0,119.0,13486.0,17,94.0
+2026,16,2026-07-21,sebastian-berwick,S. BERWICK,CAJA RURAL-SEGUROS RGA,223,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,119.6,58.0,78.0,102.0,12494.0,17,95.0
+2026,16,2026-07-21,mathieu-van-der-poel,M. VAN DER POEL,ALPECIN-PREMIER TECH,101,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,74.13333333333334,1.0,91.0,74.0,10867.0,17,96.0
+2026,16,2026-07-21,brent-van-moer,B. VAN MOER,PINARELLO-Q36.5 PRO CYCLING TEAM,177,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,84.4,25.0,42.0,95.0,11800.0,17,97.0
+2026,16,2026-07-21,tobias-halland-johannessen,T. JOHANNESSEN,UNO-X MOBILITY,121,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,34.8,2.0,95.0,18.0,2760.0,17,98.0
+2026,16,2026-07-21,ion-izagirre-insausti,I. IZAGIRRE,COFIDIS,161,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,78.13333333333334,18.0,60.0,46.0,7795.0,17,99.0
+2026,16,2026-07-21,edoardo-affini,E. AFFINI,TEAM VISMA | LEASE A BIKE,12,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,106.06666666666666,41.0,136.0,141.0,14735.0,17,100.0
+2026,16,2026-07-21,max-walker,M. WALKER,EF EDUCATION - EASYPOST,48,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,118.66666666666667,64.0,118.0,107.0,12770.0,17,101.0
+2026,16,2026-07-21,nico-denz,N. DENZ,RED BULL - BORA - HANSGROHE,23,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,104.73333333333333,21.0,108.0,103.0,12531.0,17,102.0
+2026,16,2026-07-21,stefano-oldani,S. OLDANI,CAJA RURAL-SEGUROS RGA,226,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,120.4,14.0,134.0,126.0,13904.0,17,103.0
+2026,16,2026-07-21,michael-storer,M. STORER,TUDOR PRO CYCLING TEAM,196,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,125.93333333333334,50.0,93.0,104.0,12553.0,17,104.0
+2026,16,2026-07-21,alex-aranburu-deva,A. ARANBURU,COFIDIS,163,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,106.93333333333334,14.0,106.0,71.0,10629.0,17,105.0
+2026,16,2026-07-21,pascal-ackermann,P. ACKERMANN,TEAM JAYCO ALULA,112,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,98.13333333333334,7.0,113.0,150.0,15081.0,17,106.0
+2026,16,2026-07-21,alfred-brockwell-wright,F. WRIGHT,PINARELLO-Q36.5 PRO CYCLING TEAM,178,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,87.26666666666667,12.0,99.0,122.0,13808.0,17,107.0
+2026,16,2026-07-21,georg-steinhauser,G. STEINHAUSER,EF EDUCATION - EASYPOST,46,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,117.73333333333333,32.0,70.0,117.0,13448.0,17,108.0
+2026,16,2026-07-21,robert-stannard,R. STANNARD,BAHRAIN VICTORIOUS,76,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,87.0,20.0,88.0,111.0,12973.0,17,109.0
+2026,16,2026-07-21,aaron-murray-gate,A. GATE,XDS ASTANA TEAM,63,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,101.86666666666666,20.0,132.0,130.0,14104.0,17,110.0
+2026,16,2026-07-21,anders-halland-johannessen,A. JOHANNESSEN,UNO-X MOBILITY,125,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,98.2,38.0,109.0,70.0,10607.0,17,111.0
+2026,16,2026-07-21,liam-slock,L. SLOCK,LOTTO INTERMARCHE,155,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,115.33333333333333,22.0,96.0,132.0,14381.0,17,112.0
+2026,16,2026-07-21,anders-skaarseth,A. SKAARSETH,UNO-X MOBILITY,126,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,82.8,28.0,94.0,61.0,9401.0,17,113.0
+2026,16,2026-07-21,luke-durbridge,L. DURBRIDGE,TEAM JAYCO ALULA,113,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,125.26666666666667,88.0,102.0,114.0,13155.0,17,114.0
+2026,16,2026-07-21,tim-marsman,T. MARSMAN,ALPECIN-PREMIER TECH,104,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,121.46666666666667,70.0,89.0,139.0,14649.0,17,115.0
+2026,16,2026-07-21,julius-van-den-berg,J. VAN DEN BERG,TEAM PICNIC POSTNL,217,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,122.46666666666667,33.0,156.0,160.0,15960.0,17,116.0
+2026,16,2026-07-21,jan-tratnik,J. TRATNIK,RED BULL - BORA - HANSGROHE,26,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,107.53333333333333,26.0,63.0,92.0,11577.0,17,117.0
+2026,16,2026-07-21,ben-healy,B. HEALY,EF EDUCATION - EASYPOST,44,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,98.26666666666667,31.0,44.0,67.0,10064.0,17,118.0
+2026,16,2026-07-21,toms-skujins,T. SKUJINS,LIDL-TREK,36,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,87.0,32.0,142.0,94.0,11795.0,17,119.0
+2026,16,2026-07-21,marc-hirschi,M. HIRSCHI,TUDOR PRO CYCLING TEAM,194,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,88.4,15.0,123.0,51.0,8087.0,17,120.0
+2026,16,2026-07-21,florian-vermeersch,F. VERMEERSCH,UAE TEAM EMIRATES XRG,6,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,97.26666666666667,17.0,76.0,120.0,13523.0,17,121.0
+2026,16,2026-07-21,warren-barguil,W. BARGUIL,TEAM PICNIC POSTNL,211,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,103.93333333333334,58.0,58.0,105.0,12570.0,17,122.0
+2026,16,2026-07-21,vlad-van-mechelen,V. VAN MECHELEN,BAHRAIN VICTORIOUS,78,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,104.2,13.0,126.0,81.0,11269.0,17,123.0
+2026,16,2026-07-21,carlos-verona-quintanilla,C. VERONA,LIDL-TREK,38,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,69.93333333333334,22.0,29.0,24.0,4535.0,17,124.0
+2026,16,2026-07-21,sepp-kuss,S. KUSS,TEAM VISMA | LEASE A BIKE,17,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,48.13333333333333,10.0,41.0,17.0,2738.0,17,125.0
+2026,16,2026-07-21,michel-hessmann,M. HEßMANN,MOVISTAR TEAM,145,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,110.46666666666667,61.0,104.0,110.0,12905.0,17,126.0
+2026,16,2026-07-21,jenthe-biermans,J. BIERMANS,COFIDIS,164,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,113.86666666666666,13.0,121.0,153.0,15330.0,17,127.0
+2026,16,2026-07-21,baptiste-veistroffer,B. VEISTROFFER,LOTTO INTERMARCHE,157,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,133.66666666666666,81.0,127.0,158.0,15693.0,17,128.0
+2026,16,2026-07-21,lorenzo-germani,L. GERMANI,GROUPAMA-FDJ UNITED,185,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,80.73333333333333,51.0,81.0,75.0,10951.0,17,129.0
+2026,16,2026-07-21,marco-haller,M. HALLER,TUDOR PRO CYCLING TEAM,193,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,129.53333333333333,31.0,110.0,151.0,15092.0,17,130.0
+2026,16,2026-07-21,anthony-turgis,A. TURGIS,TOTALENERGIES,207,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,88.53333333333333,6.0,87.0,121.0,13747.0,17,131.0
+2026,16,2026-07-21,emiel-verstrynge,E. VERSTRYNGE,ALPECIN-PREMIER TECH,108,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,113.86666666666666,24.0,105.0,100.0,12384.0,17,132.0
+2026,16,2026-07-21,thomas-jake-stewart,J. STEWART,NSN CYCLING TEAM,137,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,120.73333333333333,24.0,162.0,155.0,15588.0,17,133.0
+2026,16,2026-07-21,davide-ballerini,D. BALLERINI,XDS ASTANA TEAM,62,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,124.06666666666666,26.0,135.0,156.0,15652.0,17,134.0
+2026,16,2026-07-21,lewis-askey,L. ASKEY,NSN CYCLING TEAM,132,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,137.46666666666667,66.0,164.0,165.0,16335.0,17,135.0
+2026,16,2026-07-21,cees-bol,C. BOL,DECATHLON CMA CGM TEAM,53,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,127.06666666666666,29.0,157.0,164.0,16326.0,17,136.0
+2026,16,2026-07-21,phil-bauhaus,P. BAUHAUS,BAHRAIN VICTORIOUS,72,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,117.93333333333334,6.0,145.0,161.0,16124.0,17,137.0
+2026,16,2026-07-21,robbe-dhondt,R. DHONDT,TEAM PICNIC POSTNL,215,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,128.26666666666668,25.0,154.0,134.0,14417.0,17,138.0
+2026,16,2026-07-21,olav-kooij,O. KOOIJ,DECATHLON CMA CGM TEAM,55,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,107.86666666666666,1.0,148.0,162.0,16178.0,17,139.0
+2026,16,2026-07-21,magnus-cort-nielsen,M. CORT NIELSEN,UNO-X MOBILITY,124,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,91.6,19.0,120.0,99.0,12379.0,17,140.0
+2026,16,2026-07-21,victor-campenaerts,V. CAMPENAERTS,TEAM VISMA | LEASE A BIKE,14,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,91.2,42.0,43.0,73.0,10861.0,17,141.0
+2026,16,2026-07-21,kamil-gradek,K. GRADEK,BAHRAIN VICTORIOUS,74,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,139.2,31.0,144.0,166.0,16349.0,17,142.0
+2026,16,2026-07-21,javier-romo-oliver,J. ROMO,MOVISTAR TEAM,147,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,80.2,31.0,59.0,63.0,9661.0,17,143.0
+2026,16,2026-07-21,mike-teunissen,M. TEUNISSEN,XDS ASTANA TEAM,66,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,89.6,19.0,124.0,125.0,13889.0,17,144.0
+2026,16,2026-07-21,louis-vervaeke,L. VERVAEKE,SOUDAL QUICK-STEP,98,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,86.66666666666667,44.0,86.0,72.0,10645.0,17,145.0
+2026,16,2026-07-21,matej-mohoric,M. MOHORIC,BAHRAIN VICTORIOUS,75,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,88.86666666666666,32.0,38.0,86.0,11498.0,17,146.0
+2026,16,2026-07-21,john-degenkolb,J. DEGENKOLB,TEAM PICNIC POSTNL,214,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,127.0,78.0,155.0,154.0,15551.0,17,147.0
+2026,16,2026-07-21,max-kanter,M. KANTER,XDS ASTANA TEAM,64,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,95.4,2.0,137.0,146.0,14977.0,17,148.0
+2026,16,2026-07-21,matis-louvel,M. LOUVEL,NSN CYCLING TEAM,135,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,140.66666666666666,52.0,151.0,163.0,16230.0,17,149.0
+2026,16,2026-07-21,lennert-van-eetvelt,L. VAN EETVELT,LOTTO INTERMARCHE,156,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,64.86666666666666,6.0,45.0,27.0,5613.0,17,150.0
+2026,16,2026-07-21,per-strand-hagenes,P. HAGENES,TEAM VISMA | LEASE A BIKE,15,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,96.73333333333333,40.0,82.0,106.0,12594.0,17,151.0
+2026,16,2026-07-21,frank-van-den-broek,F. VAN DEN BROEK,TEAM PICNIC POSTNL,218,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,111.06666666666666,16.0,153.0,108.0,12850.0,17,152.0
+2026,16,2026-07-21,jasper-philipsen,J. PHILIPSEN,ALPECIN-PREMIER TECH,105,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,104.73333333333333,3.0,159.0,148.0,14988.0,17,153.0
+2026,16,2026-07-21,george-bennett,G. BENNETT,NSN CYCLING TEAM,133,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,110.4,16.0,101.0,83.0,11279.0,17,154.0
+2026,16,2026-07-21,silvan-dillier,S. DILLIER,ALPECIN-PREMIER TECH,103,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,141.93333333333334,91.0,103.0,147.0,14980.0,17,155.0
+2026,16,2026-07-21,soeren-waerenskjold,S. WAERENSKJOLD,UNO-X MOBILITY,128,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,103.86666666666666,1.0,166.0,142.0,14853.0,17,156.0
+2026,16,2026-07-21,tim-van-dijke,T. VAN DIJKE,RED BULL - BORA - HANSGROHE,27,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,96.13333333333334,36.0,36.0,109.0,12894.0,17,157.0
+2026,16,2026-07-21,niklas-maerkl,N. MÄRKL,TEAM PICNIC POSTNL,216,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,110.2,23.0,112.0,145.0,14964.0,17,158.0
+2026,16,2026-07-21,harold-tejada-canacue,H. TEJADA,XDS ASTANA TEAM,65,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,69.2,2.0,133.0,39.0,7125.0,17,159.0
+2026,16,2026-07-21,pavel-bittner,P. BITTNER,TEAM PICNIC POSTNL,213,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,91.8,5.0,115.0,143.0,14882.0,17,160.0
+2026,16,2026-07-21,jefferson-cepeda,J. CEPEDA,MOVISTAR TEAM,143,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,102.53333333333333,38.0,107.0,88.0,11555.0,17,161.0
+2026,16,2026-07-21,biniam-girmay,B. GIRMAY,NSN CYCLING TEAM,131,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,97.13333333333334,2.0,163.0,140.0,14724.0,17,162.0
+2026,16,2026-07-21,piet-allegaert,P. ALLEGAERT,COFIDIS,162,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,132.46666666666667,28.0,146.0,159.0,15810.0,17,163.0
+2026,16,2026-07-21,pascal-eenkhoorn,P. EENKHOORN,SOUDAL QUICK-STEP,92,,itt,26.1,Évian-les-Bains > Thonon-les-Bains,15,134.86666666666667,23.0,165.0,152.0,15286.0,17,164.0
