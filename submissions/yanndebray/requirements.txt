@@ -1,0 +1,2 @@
+# Optional extra dependencies for this submission.
+# Challenge baseline already provides: skore[hub], scikit-learn, pandas, skrub, numpy.
