@@ -1,0 +1,3 @@
+# TabICLv2 tabular foundation model (pulls torch). The pretrained checkpoint is
+# downloaded from Hugging Face on first fit.
+tabicl>=2.1
