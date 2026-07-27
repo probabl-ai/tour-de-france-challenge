@@ -1,14 +1,8 @@
 name: Validate submission PR
 
+# Tour 2026 is finished — PR validation disabled. Manual dispatch only if needed.
 on:
-  pull_request:
-    paths:
-      - "submissions/**"
-      - "scripts/check_skore_usage.py"
-      - "scripts/run_submission.py"
-      - "data/data.csv"
-      - "data/test.csv"
-      - "pyproject.toml"
+  workflow_dispatch:
 
 permissions:
   contents: read

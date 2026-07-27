@@ -1,5 +1,6 @@
 name: Score and publish open PRs
 
+# Tour 2026 is finished — scoring is manual only (workflow kept for archival re-runs).
 # Manual scoring against committed data/test.csv (no re-fetch).
 # Scores all open submission PRs (models retrained each run).
 
