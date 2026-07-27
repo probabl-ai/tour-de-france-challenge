@@ -1,9 +1,7 @@
 name: Fetch data and score open PRs
 
+# Tour 2026 is finished — no scheduled fetch. Manual dispatch only if needed.
 on:
-  schedule:
-    # 20:00 Europe/Paris ≈ 18:00 UTC during CEST (July)
-    - cron: "0 18 * * *"
   workflow_dispatch:
     inputs:
       score_day:
